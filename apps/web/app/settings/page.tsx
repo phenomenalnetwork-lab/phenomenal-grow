@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/lib/orgs";
-import { prisma } from "@/lib/prisma";
 import { apiFetch } from "@/lib/api";
+import { prisma } from "@/lib/prisma";
 import { Shell } from "../shell";
 import { CreateOrgForm, OrgSwitcher, InviteForm, AcceptInviteButton } from "../org-forms";
 import { deactivateMember } from "./actions";
@@ -16,9 +16,12 @@ export default async function SettingsPage() {
 
   let members: Array<{ user: { id: string; name: string; email: string }; role: string; active: boolean }> = [];
   let invites: Array<{ id: string; email: string; role: string; token: string; acceptedAt: Date | null }> = [];
+  let numbers: Array<{ id: string; label: string; providerNumberId: string }> = [];
+  let isOwner = false;
   if (active) {
     try {
       await requireMembership(session.user.id, active.orgId, true);
+      isOwner = true;
       members = await prisma.membership.findMany({
         where: { orgId: active.orgId },
         include: { user: { select: { id: true, name: true, email: true } } },
@@ -28,6 +31,8 @@ export default async function SettingsPage() {
         where: { orgId: active.orgId },
         orderBy: { createdAt: "desc" },
       });
+      const numRes = await apiFetch<any[]>("/whatsapp/numbers", { orgId: active.orgId });
+      if (numRes.ok) numbers = numRes.data ?? [];
     } catch {
       members = [];
     }
@@ -36,8 +41,6 @@ export default async function SettingsPage() {
     where: { email: session.user.email.toLowerCase(), acceptedAt: null },
     include: { org: { select: { name: true } } },
   });
-  const numbersRes = active ? await apiFetch<any[]>("/whatsapp/numbers", { orgId: active.orgId }) : null;
-  const numbers = numbersRes?.ok ? (numbersRes.data ?? []) : [];
 
   return (
     <Shell>
@@ -47,25 +50,29 @@ export default async function SettingsPage() {
         <OrgSwitcher orgs={memberships.map((m) => ({ id: m.orgId, name: m.org.name }))} activeId={active?.orgId ?? null} />
         <h3>Create organisation</h3>
         <CreateOrgForm />
-        {active && members.length > 0 && (
+        {active && isOwner && (
           <>
             <h3>WhatsApp numbers</h3>
             <ul>
-              {numbers.map((n: any) => (
+              {numbers.map((n) => (
                 <li key={n.id}>
-                  {n.label} ({n.providerNumberId})
-                  <form action={removeNumber.bind(null, n.id)} style={{ display: "inline", marginLeft: 8 }}>
+                  {n.label} ({n.providerNumberId}){" "}
+                  <form action={removeNumber.bind(null, n.id)} style={{ display: "inline" }}>
                     <button type="submit">Disconnect</button>
                   </form>
                 </li>
               ))}
             </ul>
             <form action={registerNumber}>
-              <input name="label" placeholder="Label e.g. Sales" required />
+              <input name="label" placeholder="Label (e.g. Sales)" required />
               <input name="providerNumberId" placeholder="Phone number ID from Meta" required />
-              <input name="accessToken" placeholder="Access token from Meta" required />
+              <input name="accessToken" placeholder="Access token from Meta" required size={40} />
               <button type="submit">Connect number</button>
             </form>
+          </>
+        )}
+        {active && members.length > 0 && (
+          <>
             <h3>Team — {active.org.name}</h3>
             <ul>
               {members.map((m) => (
