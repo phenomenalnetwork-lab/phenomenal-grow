@@ -3,7 +3,8 @@ import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/
 import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
-import { updateContact, addNote, addTag, removeTag, mergeContacts } from "../actions";
+import { updateContact, addNote, addTag, removeTag, mergeContacts, enrollPipeline, movePipeline, outcomePipeline, unenrollPipeline } from "../actions";
+import { NOT_CONVERTED_REASONS } from "@pgrow/types";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -23,6 +24,8 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
   const c = res.data as any;
   const acts = await apiFetch(`/contacts/${id}/activities`, { orgId });
   const timeline = acts.ok ? (acts.data as any[]) : [];
+  const pipesRes = await apiFetch("/pipelines", { orgId });
+  const allPipes = pipesRes.ok ? ((pipesRes.data as any[]) ?? []) : [];
   let members: Array<{ user: { id: string; name: string; email: string }; role: string }> | null = null;
   try {
     await requireMembership(session.user.id, orgId, true);
@@ -122,6 +125,58 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
         <form action={mergeContacts.bind(null, c.id)}>
           <input name="otherPhone" placeholder="Other contact's phone" required />
           <button type="submit">Find & merge into this contact</button>
+        </form>
+
+        <h3>Pipelines</h3>
+        {(c.pipelines ?? []).map((e: any) => (
+          <div key={e.id} style={{ borderTop: "1px solid #e2e8f0", paddingTop: 8, marginTop: 8 }}>
+            <p>
+              <strong>{e.pipeline.name}</strong> · {e.stage.name} · {e.outcome}
+              {e.outcomeReason ? ` (${e.outcomeReason})` : ""}
+            </p>
+            <form action={movePipeline.bind(null, c.id, e.pipelineId)}>
+              <select name="stageId" defaultValue={e.stageId}>
+                {(e.pipeline.stages ?? []).map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <button type="submit">Move</button>
+            </form>
+            <form action={outcomePipeline.bind(null, c.id, e.pipelineId)}>
+              <select name="outcome" defaultValue={e.outcome}>
+                <option value="ONGOING">Ongoing</option>
+                <option value="CONVERTED">Converted</option>
+                <option value="NOT_CONVERTED">Not converted</option>
+              </select>
+              <select name="reason" defaultValue={e.outcomeReason ?? ""}>
+                <option value="">No reason</option>
+                {NOT_CONVERTED_REASONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              <button type="submit">Set outcome</button>
+            </form>
+            <form action={unenrollPipeline.bind(null, c.id, e.pipelineId)}>
+              <button type="submit">Remove from pipeline</button>
+            </form>
+          </div>
+        ))}
+        <form action={enrollPipeline.bind(null, c.id)}>
+          <select name="pipelineId" required defaultValue="">
+            <option value="" disabled>
+              Add to pipeline…
+            </option>
+            {allPipes.map((p: any) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit">Enroll</button>
         </form>
 
         <h3>Timeline</h3>

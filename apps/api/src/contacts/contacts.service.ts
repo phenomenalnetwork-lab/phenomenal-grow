@@ -21,6 +21,8 @@ export interface ListQuery {
   q?: string;
   status?: string;
   tag?: string;
+  pipeline?: string;
+  stage?: string;
   assigned?: "me" | "all" | string;
   take?: number;
   skip?: number;
@@ -31,6 +33,7 @@ const STATUSES = ["ACTIVE", "INACTIVE", "ARCHIVED", "DNC"] as const;
 const detailInclude = {
   tags: { include: { tag: true } },
   notes: { orderBy: { createdAt: "desc" as const }, take: 200 },
+  pipelines: { include: { pipeline: { include: { stages: { orderBy: { order: "asc" as const } } } }, stage: true }, orderBy: { enteredAt: "asc" as const } },
 } satisfies Prisma.ContactInclude;
 
 export function assertVisible(contact: { assignedAgentId: string | null } | null, ctx: ActorCtx) {
@@ -68,6 +71,14 @@ export class ContactsService {
     }
     if (q.tag?.trim()) {
       where.tags = { some: { tag: { name: q.tag.trim() } } };
+    }
+    if (q.pipeline?.trim() || q.stage?.trim()) {
+      where.pipelines = {
+        some: {
+          ...(q.pipeline?.trim() ? { pipelineId: q.pipeline.trim() } : {}),
+          ...(q.stage?.trim() ? { stageId: q.stage.trim() } : {}),
+        },
+      };
     }
     return where;
   }

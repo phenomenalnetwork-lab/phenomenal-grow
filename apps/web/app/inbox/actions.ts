@@ -26,8 +26,7 @@ export async function replyToConversation(id: string, form: FormData) {
   revalidatePath("/inbox");
 }
 
-export async function updateConversation(id: string, form: FormData) {
-  const oid = await orgId();
+export async function updateConversation(id: string, form: FormData) {  const oid = await orgId();
   const body: Record<string, unknown> = {};
   const status = form.get("status");
   const assignee = form.get("assignedAgentId");
@@ -37,4 +36,15 @@ export async function updateConversation(id: string, form: FormData) {
   if (!res.ok) throw new Error((res.data as any)?.message ?? "Update failed");
   revalidatePath(`/inbox/${id}`);
   revalidatePath("/inbox");
+}
+
+export async function moveStageFromInbox(conversationId: string, contactId: string, pipelineId: string, form: FormData) {
+  const oid = await orgId();
+  const res = await apiFetch(`/contacts/${contactId}/pipelines/${pipelineId}`, {
+    method: "PATCH",
+    orgId: oid,
+    body: { stageId: String(form.get("stageId") ?? "") },
+  });
+  if (!res.ok) throw new Error((res.data as any)?.message ?? "Move failed");
+  revalidatePath(`/inbox/${conversationId}`);
 }

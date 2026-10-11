@@ -3,7 +3,7 @@ import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/
 import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
-import { replyToConversation, updateConversation } from "../actions";
+import { replyToConversation, updateConversation, moveStageFromInbox } from "../actions";
 
 export default async function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -20,6 +20,8 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
     throw new Error((res.data as any)?.message ?? "Load failed");
   }
   const c = res.data as any;
+  const enrollRes = await apiFetch(`/contacts/${c.contact?.id}/pipelines`, { orgId });
+  const enrollments = enrollRes.ok ? ((enrollRes.data as any[]) ?? []) : [];
 
   let members: Array<{ user: { id: string; name: string }; role: string }> | null = null;
   try {
@@ -69,6 +71,21 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
           </p>
         )}
         <h3>Manage</h3>
+        {enrollments.map((e: any) => (
+          <form key={e.id} action={moveStageFromInbox.bind(null, c.id, c.contact.id, e.pipelineId)}>
+            <span>
+              {e.pipeline.name}:{" "}
+            </span>
+            <select name="stageId" defaultValue={e.stageId}>
+              {(e.pipeline.stages ?? []).map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <button type="submit">Move stage</button>
+          </form>
+        ))}
         <form action={updateConversation.bind(null, c.id)}>
           <select name="status" defaultValue={c.status}>
             <option value="OPEN">Open</option>

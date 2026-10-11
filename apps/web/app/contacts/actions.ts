@@ -80,8 +80,7 @@ export async function removeTag(id: string, tagId: string) {
   revalidatePath(`/contacts/${id}`);
 }
 
-export async function mergeContacts(survivingId: string, form: FormData) {
-  const oid = await orgId();
+export async function mergeContacts(survivingId: string, form: FormData) {  const oid = await orgId();
   const otherPhone = String(form.get("otherPhone") ?? "").trim();
   if (!otherPhone) throw new Error("Other contact phone required");
   const found = await apiFetch(`/contacts?q=${encodeURIComponent(otherPhone)}&take=5`, { orgId: oid });
@@ -97,4 +96,44 @@ export async function mergeContacts(survivingId: string, form: FormData) {
   if (!res.ok) throw new Error((res.data as any)?.message ?? "Merge failed");
   revalidatePath("/contacts");
   redirect(`/contacts/${survivingId}`);
+}
+
+export async function enrollPipeline(contactId: string, form: FormData) {
+  const oid = await orgId();
+  const res = await apiFetch(`/contacts/${contactId}/pipelines`, {
+    method: "POST",
+    orgId: oid,
+    body: { pipelineId: String(form.get("pipelineId") ?? "") },
+  });
+  if (!res.ok) throw new Error((res.data as any)?.message ?? "Enroll failed");
+  revalidatePath(`/contacts/${contactId}`);
+}
+
+export async function movePipeline(contactId: string, pipelineId: string, form: FormData) {
+  const oid = await orgId();
+  const res = await apiFetch(`/contacts/${contactId}/pipelines/${pipelineId}`, {
+    method: "PATCH",
+    orgId: oid,
+    body: { stageId: String(form.get("stageId") ?? "") },
+  });
+  if (!res.ok) throw new Error((res.data as any)?.message ?? "Move failed");
+  revalidatePath(`/contacts/${contactId}`);
+}
+
+export async function outcomePipeline(contactId: string, pipelineId: string, form: FormData) {
+  const oid = await orgId();
+  const res = await apiFetch(`/contacts/${contactId}/pipelines/${pipelineId}/outcome`, {
+    method: "POST",
+    orgId: oid,
+    body: { outcome: String(form.get("outcome") ?? ""), reason: String(form.get("reason") ?? "") || undefined },
+  });
+  if (!res.ok) throw new Error((res.data as any)?.message ?? "Outcome failed");
+  revalidatePath(`/contacts/${contactId}`);
+}
+
+export async function unenrollPipeline(contactId: string, pipelineId: string) {
+  const oid = await orgId();
+  const res = await apiFetch(`/contacts/${contactId}/pipelines/${pipelineId}`, { method: "DELETE", orgId: oid });
+  if (!res.ok) throw new Error((res.data as any)?.message ?? "Remove failed");
+  revalidatePath(`/contacts/${contactId}`);
 }

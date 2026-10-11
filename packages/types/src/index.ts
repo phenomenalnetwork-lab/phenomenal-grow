@@ -8,3 +8,5 @@ export type ContactStatus = (typeof ContactStatuses)[number];
 
 export const Outcomes = ["ONGOING", "CONVERTED", "NOT_CONVERTED"] as const;
 export type Outcome = (typeof Outcomes)[number];
+
+export * from "./outcomes";

@@ -4,7 +4,7 @@ const hrefs: Record<string, string> = {
   Home: "/",
   Inbox: "/inbox",
   Contacts: "/contacts",
-  Pipelines: "/contacts",
+  Pipelines: "/pipelines",
   "Follow-ups": "/contacts",
   Appointments: "/contacts",
   Reports: "/contacts",

@@ -145,6 +145,7 @@ model Contact {
   tags       ContactTag[]
   notes      Note[]
   activities Activity[]
+  pipelines  ContactPipeline[]
 
   @@unique([orgId, phoneE164])
   @@index([orgId, status])
@@ -196,6 +197,12 @@ model SavedView {
   createdAt DateTime @default(now())
 
   @@index([orgId, ownerId])
+}
+
+enum PipelineOutcome {
+  ONGOING
+  CONVERTED
+  NOT_CONVERTED
 }
 
 model ContactMerge {
@@ -275,6 +282,57 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, sentAt])
+}
+
+// Relationship journeys. A contact can ride several at once (visitor →
+// volunteer) without duplicating the contact record.
+model Pipeline {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  type      String   @default("custom")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stages      Stage[]
+  enrollments ContactPipeline[]
+
+  @@index([orgId])
+}
+
+model Stage {
+  id             String   @id @default(cuid())
+  pipelineId     String
+  name           String
+  order          Int      @default(0)
+  expectedAction String?
+  isConversion   Boolean  @default(false)
+
+  pipeline    Pipeline          @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  enrollments ContactPipeline[]
+
+  @@index([pipelineId, order])
+}
+
+model ContactPipeline {
+  id            String          @id @default(cuid())
+  orgId         String
+  contactId     String
+  pipelineId    String
+  stageId       String
+  outcome       PipelineOutcome @default(ONGOING)
+  outcomeReason String?
+  enteredAt     DateTime        @default(now())
+  convertedAt   DateTime?
+  updatedAt     DateTime        @updatedAt
+
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage    Stage    @relation(fields: [stageId], references: [id], onDelete: Restrict)
+
+  @@unique([contactId, pipelineId])
+  @@index([orgId, pipelineId, stageId])
+  @@index([orgId, outcome])
 }
 
 model Activity {
