@@ -1,3 +1,6 @@
+import path from "node:path";
+import { config as loadEnv } from "dotenv";
+loadEnv({ path: path.join(__dirname, "../../../.env") });
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";

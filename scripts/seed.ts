@@ -53,4 +53,4 @@ void main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => void prisma.disconnect());
+  .finally(() => void prisma.$disconnect());

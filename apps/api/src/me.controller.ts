@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "./auth.guard";
 import { OrgGuard } from "./org.guard";
 import { PrismaService } from "./prisma.service";
@@ -6,7 +6,7 @@ import { PrismaService } from "./prisma.service";
 @Controller("me")
 @UseGuards(AuthGuard)
 export class MeController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   @Get()
   async me(@Req() req: any) {
