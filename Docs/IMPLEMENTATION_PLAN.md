@@ -14,21 +14,21 @@
 
 ---
 
-## 2. Architectural decisions (proposed — confirm before Phase 1)
+## 2. Architectural decisions (LOCKED 2026-10-11 — update here if they change)
 
-### 2.1 Stack recommendation
+### 2.1 Stack (locked)
 
 | Layer | Choice | Why |
 |---|---|---|
 | Monorepo | Turborepo + pnpm workspaces | One repo for web + api + jobs + shared types; matches 8 product areas without fragmentation |
 | Web app | Next.js (App Router, TypeScript) + Tailwind + shadcn/ui | Covers PRD mobile (`do the work`) + desktop (`manage the work`) as one responsive PWA; fastest to V1, no native app needed |
 | API | NestJS (TypeScript, REST) + Prisma ORM | Clear module boundaries (contacts, inbox, pipelines, follow-ups, appointments, orgs); RBAC + multi-tenancy easier than Next API routes alone |
-| DB | PostgreSQL (primary) | Relational fit: contacts + pipelines + activities + assignments; full-text search for contacts; JSONB for custom fields |
-| Queue / scheduler | Redis + BullMQ (or pg-boss if you want zero-Redis) | Required for: follow-up sequences, reminders, re-engagement timers, DNC enforcement, appointment nudges |
+| DB | Device-local PostgreSQL via Docker Compose (`docker-compose.yml`) | No managed DB in dev; mirrors prod Postgres; JSONB for custom fields, full-text search for contacts |
+| Queue / scheduler | Redis + BullMQ via Docker Compose | Required for: follow-up sequences, reminders, re-engagement timers, DNC enforcement, appointment nudges |
 | Realtime | WebSocket (Socket.io) API → Next.js | Inbox needs-reply, assignment, reply-received badges without polling |
-| Auth | Email + password + org invites (Auth.js / custom JWT + refresh) | PRD needs multi-org membership + Owner/Agent roles; avoid vendor lock-in early |
-| File storage | S3-compatible (attachments from WhatsApp) | Inbox attachments view |
-| Hosting | Web on Vercel, API + worker + Redis + Postgres on Railway/Render/Fly | Simple, cheap, preview envs; single alternative: everything on one VPS via Docker Compose for cost control |
+| Auth | Better Auth (email + password) in `apps/web`, Prisma-backed sessions | PRD needs multi-org membership + Owner/Agent roles; NestJS API verifies the Better Auth session per request |
+| File storage | Cloudflare R2 via S3-compatible API (`packages/storage`). Supabase is NOT used. | Inbox attachments view; R2 = S3 API, no vendor SDK lock-in |
+| Hosting | Web on Cloudflare Pages, API + worker + Postgres + Redis on a VPS with Docker. Vercel is NOT used. | Cheap, preview-friendly web + full-control backend; single-VPS Compose remains the fallback |
 
 **Alternative if solo-founder speed > scalability:** Next.js full-stack (API routes + Prisma + Trigger.dev for jobs) and split NestJS out only when team grows. Decision needed before Phase 0 exit.
 
