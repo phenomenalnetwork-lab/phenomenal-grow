@@ -215,6 +215,14 @@ export class ContactsService {
       for (const e of events) {
         await logActivity(tx, { orgId: ctx.orgId, contactId: id, type: e.type, actorId: ctx.userId, payload: e.payload });
       }
+      if (dto.status === "DNC") {
+        // Hard stop: no automated follow-up may ever reach this contact again.
+        const active = await tx.enrollment.findMany({ where: { contactId: id, status: "ACTIVE" }, select: { id: true } });
+        for (const a of active) {
+          await tx.enrollment.update({ where: { id: a.id }, data: { status: "STOPPED", stopReason: "dnc", nextRunAt: null } });
+          await logActivity(tx, { orgId: ctx.orgId, contactId: id, type: "sequence.stopped", actorId: ctx.userId, payload: { enrollmentId: a.id, reason: "dnc" } });
+        }
+      }
       return c;
     });
     void updated;

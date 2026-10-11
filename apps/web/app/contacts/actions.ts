@@ -137,3 +137,14 @@ export async function unenrollPipeline(contactId: string, pipelineId: string) {
   if (!res.ok) throw new Error((res.data as any)?.message ?? "Remove failed");
   revalidatePath(`/contacts/${contactId}`);
 }
+
+export async function enrollSequence(contactId: string, form: FormData) {
+  const oid = await orgId();
+  const res = await apiFetch(`/contacts/${contactId}/enrollments`, {
+    method: "POST",
+    orgId: oid,
+    body: { sequenceId: String(form.get("sequenceId") ?? "") },
+  });
+  if (!res.ok) throw new Error((res.data as any)?.message ?? "Enroll failed");
+  revalidatePath(`/contacts/${contactId}`);
+}

@@ -192,6 +192,24 @@ export class PipelinesService {
 
   // -- enrollments ---------------------------------------------------------
 
+  private async stopStandardSequences(
+    tx: Prisma.TransactionClient,
+    orgId: string,
+    contactId: string,
+    actorId: string,
+    reason: string,
+  ) {
+    // Conversion ends standard sequences; post-conversion journeys keep running.
+    const active = await tx.enrollment.findMany({
+      where: { contactId, status: "ACTIVE", sequence: { postConversion: false } },
+      select: { id: true },
+    });
+    for (const a of active) {
+      await tx.enrollment.update({ where: { id: a.id }, data: { status: "STOPPED", stopReason: reason, nextRunAt: null } });
+      await logActivity(tx, { orgId, contactId, type: "sequence.stopped", actorId, payload: { enrollmentId: a.id, reason } });
+    }
+  }
+
   private async requireContact(ctx: ActorCtx, contactId: string) {
     const contact = await this.prisma.contact.findFirst({ where: { id: contactId, orgId: ctx.orgId } });
     assertVisible(contact, ctx);
@@ -252,6 +270,9 @@ export class PipelinesService {
         actorId: ctx.userId,
         payload: { pipelineId: p.id, pipeline: p.name, from: enrollment.stage.name, to: stage.name },
       });
+      if (stage.isConversion) {
+        await this.stopStandardSequences(tx, ctx.orgId, contactId, ctx.userId, "converted");
+      }
       return e;
     });
     return updated;
@@ -281,6 +302,9 @@ export class PipelinesService {
         actorId: ctx.userId,
         payload: { pipelineId, outcome, reason: reason?.trim() || null },
       });
+      if (outcome === "CONVERTED") {
+        await this.stopStandardSequences(tx, ctx.orgId, contactId, ctx.userId, "converted");
+      }
       return e;
     });
     return updated;

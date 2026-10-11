@@ -146,6 +146,8 @@ model Contact {
   notes      Note[]
   activities Activity[]
   pipelines  ContactPipeline[]
+  followups  Followup[]
+  enrollments Enrollment[]
 
   @@unique([orgId, phoneE164])
   @@index([orgId, status])
@@ -333,6 +335,85 @@ model ContactPipeline {
   @@unique([contactId, pipelineId])
   @@index([orgId, pipelineId, stageId])
   @@index([orgId, outcome])
+}
+
+// Manual follow-ups: "Call John tomorrow at 10 AM".
+model Followup {
+  id              String    @id @default(cuid())
+  orgId           String
+  contactId       String
+  title           String
+  dueAt           DateTime
+  assignedAgentId String?
+  doneAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, assignedAgentId, dueAt])
+  @@index([orgId, contactId])
+}
+
+enum SequenceKind {
+  GUIDED
+  CUSTOM
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
+  COMPLETED
+}
+
+// Follow-up sequences. postConversion sequences keep running after a
+// conversion (customer onboarding); others stop when the contact converts.
+model Sequence {
+  id             String       @id @default(cuid())
+  orgId          String
+  name           String
+  kind           SequenceKind @default(CUSTOM)
+  postConversion Boolean      @default(false)
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  steps       SequenceStep[]
+  enrollments Enrollment[]
+
+  @@index([orgId])
+}
+
+model SequenceStep {
+  id         String @id @default(cuid())
+  sequenceId String
+  dayOffset  Int    @default(0)
+  order      Int    @default(0)
+  body       String
+
+  sequence    Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  @@index([sequenceId, order])
+}
+
+model Enrollment {
+  id           String           @id @default(cuid())
+  orgId        String
+  sequenceId   String
+  contactId    String
+  status       EnrollmentStatus @default(ACTIVE)
+  currentStep  Int              @default(0)
+  enrolledAt   DateTime         @default(now())
+  nextRunAt    DateTime?
+  attempts     Int              @default(0)
+  stopReason   String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status, nextRunAt])
+  @@index([contactId, status])
 }
 
 model Activity {

@@ -1,0 +1,25 @@
+import { Module } from "@nestjs/common";
+import { MetaProvider } from "../whatsapp/meta.provider";
+import { SequencesEngine } from "./engine";
+import { SequencesService } from "./sequences.service";
+import { FollowupsService } from "./followups.service";
+import {
+  SequencesController,
+  ContactEnrollmentsController,
+  EnrollmentsController,
+  FollowupsController,
+  ReengagementController,
+} from "./sequences.controller";
+
+@Module({
+  controllers: [
+    SequencesController,
+    ContactEnrollmentsController,
+    EnrollmentsController,
+    FollowupsController,
+    ReengagementController,
+  ],
+  providers: [SequencesEngine, SequencesService, FollowupsService, MetaProvider],
+  exports: [SequencesEngine],
+})
+export class SequencesModule {}

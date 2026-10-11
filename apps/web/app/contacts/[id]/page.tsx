@@ -3,7 +3,8 @@ import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/
 import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
-import { updateContact, addNote, addTag, removeTag, mergeContacts, enrollPipeline, movePipeline, outcomePipeline, unenrollPipeline } from "../actions";
+import { updateContact, addNote, addTag, removeTag, mergeContacts, enrollPipeline, movePipeline, outcomePipeline, unenrollPipeline, enrollSequence } from "../actions";
+import { createFollowup, toggleFollowup } from "../../followups/actions";
 import { NOT_CONVERTED_REASONS } from "@pgrow/types";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +27,12 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
   const timeline = acts.ok ? (acts.data as any[]) : [];
   const pipesRes = await apiFetch("/pipelines", { orgId });
   const allPipes = pipesRes.ok ? ((pipesRes.data as any[]) ?? []) : [];
+  const fuRes = await apiFetch(`/followups?view=all`, { orgId });
+  const myFollowups = fuRes.ok ? ((fuRes.data as any).items ?? []).filter((f: any) => f.contactId === id) : [];
+  const enRes = await apiFetch(`/contacts/${id}/enrollments`, { orgId });
+  const myEnrollments = enRes.ok ? ((enRes.data as any[]) ?? []) : [];
+  const seqRes = await apiFetch("/sequences", { orgId });
+  const allSeqs = seqRes.ok ? ((seqRes.data as any[]) ?? []) : [];
   let members: Array<{ user: { id: string; name: string; email: string }; role: string }> | null = null;
   try {
     await requireMembership(session.user.id, orgId, true);
@@ -173,6 +180,47 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             {allPipes.map((p: any) => (
               <option key={p.id} value={p.id}>
                 {p.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit">Enroll</button>
+        </form>
+
+        <h3>Follow-ups</h3>
+        <ul>
+          {myFollowups.map((f: any) => (
+            <li key={f.id}>
+              {f.title} <small>(due {String(f.dueAt).slice(0, 16)}{f.doneAt ? ", done" : ""})</small>{" "}
+              {!f.doneAt && (
+                <form action={toggleFollowup.bind(null, f.id, true, `/contacts/${c.id}`)} style={{ display: "inline" }}>
+                  <button type="submit">Done</button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+        <form action={createFollowup.bind(null, c.id)}>
+          <input name="title" placeholder="e.g. Call tomorrow at 10 AM" required />
+          <input name="dueAt" type="datetime-local" required />
+          <button type="submit">Add follow-up</button>
+        </form>
+
+        <h3>Sequences</h3>
+        <ul>
+          {myEnrollments.map((e: any) => (
+            <li key={e.id}>
+              {e.sequence?.name} · {e.status} · step {e.currentStep}
+            </li>
+          ))}
+        </ul>
+        <form action={enrollSequence.bind(null, c.id)}>
+          <select name="sequenceId" required defaultValue="">
+            <option value="" disabled>
+              Enroll in sequence…
+            </option>
+            {allSeqs.map((s: any) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </select>

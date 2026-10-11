@@ -5,7 +5,7 @@ const hrefs: Record<string, string> = {
   Inbox: "/inbox",
   Contacts: "/contacts",
   Pipelines: "/pipelines",
-  "Follow-ups": "/contacts",
+  "Follow-ups": "/followups",
   Appointments: "/contacts",
   Reports: "/contacts",
   Settings: "/",

@@ -141,6 +141,12 @@ export class WhatsappService {
       });
       await tx.conversation.update({ where: { id: conv.id }, data: { lastInboundAt: msg.timestamp, needsReply: true } });
       await tx.contact.update({ where: { id: contact.id }, data: { lastMessageAt: msg.timestamp } });
+      // A human reply is on its way: pause automated sequences (human takes over).
+      const active = await tx.enrollment.findMany({ where: { contactId: contact.id, status: "ACTIVE" }, select: { id: true } });
+      for (const a of active) {
+        await tx.enrollment.update({ where: { id: a.id }, data: { status: "PAUSED", nextRunAt: null } });
+        await logActivity(tx, { orgId, contactId: contact.id, type: "sequence.paused", payload: { enrollmentId: a.id, reason: "contact replied" } });
+      }
       await logActivity(tx, {
         orgId,
         contactId: contact.id,
