@@ -13,10 +13,13 @@
     "@pgrow/config": "workspace:*",
     "@pgrow/types": "workspace:*",
     "@prisma/client": "5.22.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "better-auth": "^1.7.7",
     "next": "^15.1.6",
+    "postcss": "^8.5.29",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

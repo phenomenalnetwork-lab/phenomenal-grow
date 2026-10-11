@@ -30,6 +30,7 @@ model Organisation {
   memberships Membership[]
   contacts    Contact[]
   activities  Activity[]
+  invites     Invite[]
 }
 
 model User {
@@ -90,6 +91,24 @@ model Verification {
   updatedAt  DateTime? @updatedAt
 
   @@map("verification")
+}
+
+// Org invite: an OWNER invites an email address. The invitee claims it
+// after signing in (matched on email). No email-sending in Phase 0 —
+// the inviter shares the invite token/link out of band.
+model Invite {
+  id         String         @id @default(cuid())
+  orgId      String
+  email      String
+  role       MembershipRole @default(AGENT)
+  token      String         @unique @default(cuid())
+  acceptedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([orgId])
 }
 
 model Membership {

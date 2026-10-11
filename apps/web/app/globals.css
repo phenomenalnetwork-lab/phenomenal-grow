@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --pg-action: #16a34a;
   --pg-due: #f59e0b;
