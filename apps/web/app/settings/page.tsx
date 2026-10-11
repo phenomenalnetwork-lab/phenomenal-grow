@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/lib/orgs";
 import { prisma } from "@/lib/prisma";
+import { apiFetch } from "@/lib/api";
 import { Shell } from "../shell";
 import { CreateOrgForm, OrgSwitcher, InviteForm, AcceptInviteButton } from "../org-forms";
 import { deactivateMember } from "./actions";
+import { registerNumber, removeNumber } from "./numbers";
 
 export default async function SettingsPage() {
   const session = await getSession();
@@ -34,6 +36,8 @@ export default async function SettingsPage() {
     where: { email: session.user.email.toLowerCase(), acceptedAt: null },
     include: { org: { select: { name: true } } },
   });
+  const numbersRes = active ? await apiFetch<any[]>("/whatsapp/numbers", { orgId: active.orgId }) : null;
+  const numbers = numbersRes?.ok ? (numbersRes.data ?? []) : [];
 
   return (
     <Shell>
@@ -45,6 +49,23 @@ export default async function SettingsPage() {
         <CreateOrgForm />
         {active && members.length > 0 && (
           <>
+            <h3>WhatsApp numbers</h3>
+            <ul>
+              {numbers.map((n: any) => (
+                <li key={n.id}>
+                  {n.label} ({n.providerNumberId})
+                  <form action={removeNumber.bind(null, n.id)} style={{ display: "inline", marginLeft: 8 }}>
+                    <button type="submit">Disconnect</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+            <form action={registerNumber}>
+              <input name="label" placeholder="Label e.g. Sales" required />
+              <input name="providerNumberId" placeholder="Phone number ID from Meta" required />
+              <input name="accessToken" placeholder="Access token from Meta" required />
+              <button type="submit">Connect number</button>
+            </form>
             <h3>Team — {active.org.name}</h3>
             <ul>
               {members.map((m) => (
