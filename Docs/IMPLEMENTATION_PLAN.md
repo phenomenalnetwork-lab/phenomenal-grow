@@ -54,6 +54,12 @@
 
 Shared kernel: `Outcome (ONGOING|CONVERTED|NOT_CONVERTED + reason)`, `ContactStatus (ACTIVE|INACTIVE|ARCHIVED|DNC)`, `ActivityEvent` (single timeline writer — every mutation emits an event, §29).
 
+Conventions (locked from build experience): user-facing domains live in the NestJS API;
+the web app calls it server-side, forwarding session cookies + `x-org-id`.
+NestJS constructors use explicit `@Inject()` (tsx/esbuild drops param-type metadata).
+Global `PrismaModule` provides the client to all modules. Web loads repo-root `.env`
+explicitly (Next only auto-loads `apps/web/.env`).
+
 ### 2.5 Core data model (first migration)
 
 ```

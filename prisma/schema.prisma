@@ -126,19 +126,88 @@ model Membership {
 }
 
 model Contact {
-  id        String        @id @default(cuid())
-  orgId     String
-  name      String
-  phoneE164 String
-  email     String?
-  status    ContactStatus @default(ACTIVE)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  orgId          String
+  name           String
+  phoneE164      String
+  email          String?
+  source         String?
+  referredBy     String?
+  status         ContactStatus @default(ACTIVE)
+  assignedAgentId String?
+  customFields   Json?
+  lastMessageAt  DateTime?
+  nextActionAt   DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org        Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tags       ContactTag[]
+  notes      Note[]
+  activities Activity[]
 
   @@unique([orgId, phoneE164])
   @@index([orgId, status])
+  @@index([orgId, assignedAgentId])
+}
+
+// Tags describe a contact (Hot Lead, VIP...). Pipeline = journey (Phase 3).
+model Tag {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  createdAt DateTime @default(now())
+
+  contacts ContactTag[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  orgId     String
+  contactId String
+  authorId  String?
+  body      String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, contactId])
+}
+
+model SavedView {
+  id        String   @id @default(cuid())
+  orgId     String
+  ownerId   String
+  name      String
+  filters   Json
+  createdAt DateTime @default(now())
+
+  @@index([orgId, ownerId])
+}
+
+model ContactMerge {
+  id          String   @id @default(cuid())
+  orgId       String
+  survivingId String
+  mergedId    String
+  snapshot    Json?
+  actorId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([orgId])
 }
 
 model Activity {
@@ -150,7 +219,8 @@ model Activity {
   payload   Json?
   at        DateTime @default(now())
 
-  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org     Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([orgId, contactId])
 }

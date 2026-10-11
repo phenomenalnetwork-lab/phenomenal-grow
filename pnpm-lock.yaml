@@ -169,6 +169,9 @@ importers:
       '@prisma/client':
         specifier: 5.22.0
         version: 5.22.0(prisma@5.22.0)
+      dotenv:
+        specifier: ^18.0.7
+        version: 18.0.7
       prisma:
         specifier: ^5.22.0
         version: 5.22.0
@@ -236,6 +239,9 @@ importers:
       better-auth:
         specifier: ^1.7.7
         version: 1.7.7(@prisma/client@5.22.0(prisma@5.22.0))(next@15.5.27(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(prisma@5.22.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      dotenv:
+        specifier: ^18.0.7
+        version: 18.0.7
       next:
         specifier: ^15.1.6
         version: 15.5.27(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

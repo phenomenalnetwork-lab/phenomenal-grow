@@ -2,6 +2,9 @@
  * Full starter pipelines/tags/sequences arrive in Phases 1-4.
  * Run: pnpm db:push && pnpm db:seed (requires DATABASE_URL + Docker pg up).
  */
+import { config as loadEnv } from "dotenv";
+loadEnv();
+
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -41,9 +44,25 @@ async function main() {
       orgId: org.id,
       type: "seed.completed",
       actorId: owner.id,
-      payload: { phase: 0 },
+      payload: { phase: 1 },
     },
   });
+
+  for (const name of [
+    "Hot Lead",
+    "VIP",
+    "First-Time Visitor",
+    "Prayer Request",
+    "Volunteer",
+    "Returning Customer",
+    "High Priority",
+  ]) {
+    await prisma.tag.upsert({
+      where: { orgId_name: { orgId: org.id, name } },
+      update: {},
+      create: { orgId: org.id, name },
+    });
+  }
 
   console.log(`Seeded org ${org.slug}`);
 }

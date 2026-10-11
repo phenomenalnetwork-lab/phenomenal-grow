@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { nav } from "@pgrow/config";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { prisma } from "@/lib/prisma";
+import { Shell } from "./shell";
 import { CreateOrgForm, OrgSwitcher, InviteForm, AcceptInviteButton } from "./org-forms";
 
 export default async function Home() {
@@ -17,46 +17,39 @@ export default async function Home() {
   });
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <h1>Phenomenal Grow</h1>
-        {nav.map((item) => (
-          <a key={item} href="#">
-            {item}
-          </a>
-        ))}
-      </aside>
-      <main className="main">
-        <div className="card">
-          <span className="badge">Phase 0</span>
-          <h2>Who needs me right now?</h2>
-          <p>
-            Signed in as {session.user.email} · Action dashboard lands in Phase 5.
-          </p>
-          <h3>Organisation</h3>
-          <OrgSwitcher orgs={memberships.map((m) => ({ id: m.orgId, name: m.org.name }))} activeId={active?.orgId ?? null} />
-          <h3>Create organisation</h3>
-          <CreateOrgForm />
-          {active && active.role === "OWNER" && (
-            <>
-              <h3>Invite agent to {active.org.name}</h3>
-              <InviteForm orgId={active.orgId} />
-            </>
-          )}
-          {pending.length > 0 && (
-            <>
-              <h3>Pending invites</h3>
-              <ul>
-                {pending.map((i) => (
-                  <li key={i.id}>
-                    {i.org.name} ({i.role}) <AcceptInviteButton token={i.token} />
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      </main>
-    </div>
+    <Shell>
+      <div className="card">
+        <span className="badge">Phase 1</span>
+        <h2>Who needs me right now?</h2>
+        <p>
+          Signed in as {session.user.email} · Action dashboard lands in Phase 5.
+        </p>
+        <p>
+          <a href="/contacts">Go to Contacts →</a>
+        </p>
+        <h3>Organisation</h3>
+        <OrgSwitcher orgs={memberships.map((m) => ({ id: m.orgId, name: m.org.name }))} activeId={active?.orgId ?? null} />
+        <h3>Create organisation</h3>
+        <CreateOrgForm />
+        {active && active.role === "OWNER" && (
+          <>
+            <h3>Invite agent to {active.org.name}</h3>
+            <InviteForm orgId={active.orgId} />
+          </>
+        )}
+        {pending.length > 0 && (
+          <>
+            <h3>Pending invites</h3>
+            <ul>
+              {pending.map((i) => (
+                <li key={i.id}>
+                  {i.org.name} ({i.role}) <AcceptInviteButton token={i.token} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </Shell>
   );
 }
