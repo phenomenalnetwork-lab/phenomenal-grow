@@ -8,9 +8,10 @@ import { ContactsModule } from "./contacts/contacts.module";
 import { WhatsappModule } from "./whatsapp/whatsapp.module";
 import { PipelinesModule } from "./pipelines/pipelines.module";
 import { SequencesModule } from "./sequences/sequences.module";
+import { HomeModule } from "./home/home.module";
 
 @Module({
-  imports: [PrismaModule, ContactsModule, WhatsappModule, PipelinesModule, SequencesModule],
+  imports: [PrismaModule, ContactsModule, WhatsappModule, PipelinesModule, SequencesModule, HomeModule],
   controllers: [HealthController, MeController],
   providers: [AuthGuard, OrgGuard],
 })

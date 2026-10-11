@@ -8,7 +8,7 @@ const hrefs: Record<string, string> = {
   "Follow-ups": "/followups",
   Appointments: "/contacts",
   Reports: "/contacts",
-  Settings: "/",
+  Settings: "/settings",
 };
 
 export function Shell({ children }: { children: React.ReactNode }) {

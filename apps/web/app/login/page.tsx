@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn, signUp, useSession, signOut } from "@/lib/auth-client";
 
-export default function LoginPage() {
+function LoginInner() {
   const { data: session, isPending } = useSession();
+  const invite = useSearchParams().get("invite");
   const [mode, setMode] = useState<"in" | "up">("in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -17,7 +19,9 @@ export default function LoginPage() {
       <main className="main">
         <div className="card">
           <h2>Signed in as {session.user.email}</h2>
-          <p>Organisation switching lands next in Phase 0 (membership-gated).</p>
+          <p>
+            <a href="/">Go to Home →</a> · <a href="/settings">Settings →</a>
+          </p>
           <button onClick={() => void signOut()}>Sign out</button>
         </div>
       </main>
@@ -31,14 +35,25 @@ export default function LoginPage() {
       mode === "in"
         ? await signIn.email({ email, password })
         : await signUp.email({ email, password, name });
-    if (res.error) setError(res.error.message ?? "Authentication failed");
-    else window.location.href = "/";
+    if (res.error) {
+      setError(res.error.message ?? "Authentication failed");
+      return;
+    }
+    if (invite) {
+      const acc = await fetch(`/api/invites/${invite}/accept`, { method: "POST" });
+      if (!acc.ok) {
+        setError("Signed in, but the invite could not be accepted (wrong email or expired).");
+        return;
+      }
+    }
+    window.location.href = "/";
   };
 
   return (
     <main className="main">
       <div className="card">
         <h2>{mode === "in" ? "Sign in" : "Create account"}</h2>
+        {invite && <p>You were invited — sign in or create your account to join.</p>}
         <form onSubmit={submit}>
           {mode === "up" && (
             <p>
@@ -61,5 +76,13 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginInner />
+    </Suspense>
   );
 }
