@@ -136,6 +136,7 @@ model Contact {
   status         ContactStatus @default(ACTIVE)
   assignedAgentId String?
   customFields   Json?
+  attribution    Json?
   lastMessageAt  DateTime?
   nextActionAt   DateTime?
   createdAt      DateTime      @default(now())
@@ -148,6 +149,7 @@ model Contact {
   pipelines  ContactPipeline[]
   followups  Followup[]
   enrollments Enrollment[]
+  appointments Appointment[]
 
   @@unique([orgId, phoneE164])
   @@index([orgId, status])
@@ -429,4 +431,52 @@ model Activity {
   contact Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([orgId, contactId])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NOSHOW
+}
+
+// Lightweight appointments (not a booking platform): date + time + type +
+// assignee + status, linked to pipelines and confirm/remind nudges.
+model Appointment {
+  id         String            @id @default(cuid())
+  orgId      String
+  contactId  String
+  date       DateTime
+  time       String?
+  type       String?
+  assigneeId String?
+  status     AppointmentStatus @default(SCHEDULED)
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, assigneeId, date])
+  @@index([orgId, contactId])
+}
+
+// Simple capture forms (website, QR, events): each maps to source +
+// pipeline/stage/assignee/sequence. Public via unguessable token.
+model CaptureForm {
+  id         String   @id @default(cuid())
+  orgId      String
+  name       String
+  token      String   @unique @default(cuid())
+  fields     Json
+  source     String   @default("Website")
+  pipelineId String?
+  stageId    String?
+  assigneeId String?
+  sequenceId String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orgId])
 }

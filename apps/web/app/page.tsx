@@ -104,6 +104,14 @@ export default async function Home() {
               </li>
             ))}
           </ul>
+          <p>Appointments today: {d.appointmentsToday.length}</p>
+          <ul>
+            {d.appointmentsToday.map((a: any) => (
+              <li key={a.id}>
+                <a href={`/contacts/${a.contactId}`}>{a.contact?.name}</a> — {a.time ?? ""} {a.type ?? ""}
+              </li>
+            ))}
+          </ul>
         </Section>
 
         <Section title="Snapshot">

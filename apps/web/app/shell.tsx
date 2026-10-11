@@ -6,10 +6,12 @@ const hrefs: Record<string, string> = {
   Contacts: "/contacts",
   Pipelines: "/pipelines",
   "Follow-ups": "/followups",
-  Appointments: "/contacts",
+  Appointments: "/appointments",
   Reports: "/contacts",
   Settings: "/settings",
 };
+
+const extraLinks = [{ label: "Capture Forms", href: "/forms" }];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -19,6 +21,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {nav.map((item) => (
           <a key={item} href={hrefs[item] ?? "/"}>
             {item}
+          </a>
+        ))}
+        {extraLinks.map((l) => (
+          <a key={l.href} href={l.href}>
+            {l.label}
           </a>
         ))}
       </aside>

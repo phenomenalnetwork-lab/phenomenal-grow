@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
 import { updateContact, addNote, addTag, removeTag, mergeContacts, enrollPipeline, movePipeline, outcomePipeline, unenrollPipeline, enrollSequence } from "../actions";
 import { createFollowup, toggleFollowup } from "../../followups/actions";
+import { createAppointment, updateAppointment } from "../../appointments/actions";
 import { NOT_CONVERTED_REASONS } from "@pgrow/types";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +34,8 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
   const myEnrollments = enRes.ok ? ((enRes.data as any[]) ?? []) : [];
   const seqRes = await apiFetch("/sequences", { orgId });
   const allSeqs = seqRes.ok ? ((seqRes.data as any[]) ?? []) : [];
+  const apptRes = await apiFetch(`/appointments?view=all`, { orgId });
+  const myAppts = apptRes.ok ? ((apptRes.data as any[]) ?? []).filter((a: any) => a.contactId === id) : [];
   let members: Array<{ user: { id: string; name: string; email: string }; role: string }> | null = null;
   try {
     await requireMembership(session.user.id, orgId, true);
@@ -225,6 +228,26 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             ))}
           </select>
           <button type="submit">Enroll</button>
+        </form>
+
+        <h3>Appointments</h3>
+        <ul>
+          {myAppts.map((a: any) => (
+            <li key={a.id}>
+              {String(a.date).slice(0, 10)}{a.time ? ` ${a.time}` : ""}{a.type ? ` · ${a.type}` : ""} · {a.status}{" "}
+              {a.status === "SCHEDULED" && (
+                <form action={updateAppointment.bind(null, a.id, "COMPLETED", `/contacts/${c.id}`)} style={{ display: "inline" }}>
+                  <button type="submit">Complete</button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+        <form action={createAppointment.bind(null, c.id)}>
+          <input name="date" type="date" required />
+          <input name="time" placeholder="10:00" />
+          <input name="type" placeholder="Type" />
+          <button type="submit">Book</button>
         </form>
 
         <h3>Timeline</h3>

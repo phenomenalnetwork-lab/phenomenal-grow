@@ -79,13 +79,19 @@ export class WhatsappService {
 
     return this.prisma.$transaction(async (tx) => {
       let contact = await tx.contact.findUnique({ where: { orgId_phoneE164: { orgId, phoneE164: phone } } });
+      const adSource = msg.referral?.sourceUrl?.includes("instagram")
+        ? "Instagram"
+        : msg.referral?.sourceUrl?.includes("facebook")
+          ? "Facebook"
+          : undefined;
       if (!contact) {
         contact = await tx.contact.create({
           data: {
             orgId,
             name: msg.profileName?.trim() || phone,
             phoneE164: phone,
-            source: "WhatsApp",
+            source: adSource ?? "WhatsApp",
+            attribution: (msg.referral ? { ...msg.referral } : undefined) as Prisma.InputJsonValue | undefined,
             status: "ACTIVE",
           },
         });

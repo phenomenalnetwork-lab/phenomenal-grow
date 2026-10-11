@@ -9,9 +9,11 @@ import { WhatsappModule } from "./whatsapp/whatsapp.module";
 import { PipelinesModule } from "./pipelines/pipelines.module";
 import { SequencesModule } from "./sequences/sequences.module";
 import { HomeModule } from "./home/home.module";
+import { AppointmentsModule } from "./appointments/appointments.module";
+import { FormsModule } from "./forms/forms.module";
 
 @Module({
-  imports: [PrismaModule, ContactsModule, WhatsappModule, PipelinesModule, SequencesModule, HomeModule],
+  imports: [PrismaModule, ContactsModule, WhatsappModule, PipelinesModule, SequencesModule, HomeModule, AppointmentsModule, FormsModule],
   controllers: [HealthController, MeController],
   providers: [AuthGuard, OrgGuard],
 })

@@ -58,6 +58,7 @@ export function parseMetaPayload(payload: any): InboundMessage[] {
       const contacts: Record<string, string> = {};
       for (const c of value?.contacts ?? []) contacts[String(c.wa_id)] = String(c.profile?.name ?? "");
       for (const m of value.messages) {
+        const referral = m.referral ?? m.context?.referral ?? undefined;
         out.push({
           providerMessageId: String(m.id),
           from: String(m.from),
@@ -68,6 +69,13 @@ export function parseMetaPayload(payload: any): InboundMessage[] {
           text: m.text?.body ? String(m.text.body) : undefined,
           mediaId: m[m.type]?.id ? String(m[m.type].id) : undefined,
           mediaMime: m[m.type]?.mime_type ? String(m[m.type].mime_type) : undefined,
+          referral: referral
+            ? {
+                sourceUrl: referral.source_url ? String(referral.source_url) : undefined,
+                sourceType: referral.source_type ? String(referral.source_type) : undefined,
+                ctwaClid: referral.ctwa_clid ? String(referral.ctwa_clid) : undefined,
+              }
+            : undefined,
         });
       }
     }

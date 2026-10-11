@@ -192,7 +192,7 @@ export class PipelinesService {
 
   // -- enrollments ---------------------------------------------------------
 
-  private async stopStandardSequences(
+  async haltStandardSequences(
     tx: Prisma.TransactionClient,
     orgId: string,
     contactId: string,
@@ -271,7 +271,7 @@ export class PipelinesService {
         payload: { pipelineId: p.id, pipeline: p.name, from: enrollment.stage.name, to: stage.name },
       });
       if (stage.isConversion) {
-        await this.stopStandardSequences(tx, ctx.orgId, contactId, ctx.userId, "converted");
+        await this.haltStandardSequences(tx, ctx.orgId, contactId, ctx.userId, "converted");
       }
       return e;
     });
@@ -303,7 +303,7 @@ export class PipelinesService {
         payload: { pipelineId, outcome, reason: reason?.trim() || null },
       });
       if (outcome === "CONVERTED") {
-        await this.stopStandardSequences(tx, ctx.orgId, contactId, ctx.userId, "converted");
+        await this.haltStandardSequences(tx, ctx.orgId, contactId, ctx.userId, "converted");
       }
       return e;
     });
@@ -332,3 +332,4 @@ export class PipelinesService {
     });
   }
 }
+

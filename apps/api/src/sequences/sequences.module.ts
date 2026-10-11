@@ -20,6 +20,6 @@ import {
     ReengagementController,
   ],
   providers: [SequencesEngine, SequencesService, FollowupsService, MetaProvider],
-  exports: [SequencesEngine],
+  exports: [SequencesEngine, SequencesService],
 })
 export class SequencesModule {}

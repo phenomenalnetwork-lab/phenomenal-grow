@@ -119,6 +119,17 @@ export class HomeService {
     const repliesToday = await this.prisma.activity.count({
       where: { orgId, type: "conversation.reply", at: { gte: sod }, ...(agent ? { actorId: userId } : {}) },
     });
+    const appointmentsToday = await this.prisma.appointment.findMany({
+      where: {
+        orgId,
+        status: "SCHEDULED",
+        date: { gte: sod, lte: eod },
+        ...(agent ? { OR: [{ assigneeId: userId }, { contact: { assignedAgentId: userId } }] } : {}),
+      },
+      include: { contact: { select: { id: true, name: true, phoneE164: true } } },
+      orderBy: [{ date: "asc" }, { time: "asc" }],
+      take: 10,
+    });
 
     let team: unknown = null;
     if (!agent) {
@@ -160,7 +171,7 @@ export class HomeService {
         convertedTotal: convertedCount,
       },
       completedToday: { followups: completedFollowups, replies: repliesToday },
-      appointmentsToday: [],
+      appointmentsToday,
       team,
     };
   }

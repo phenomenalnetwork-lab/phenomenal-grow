@@ -28,4 +28,10 @@ export interface InboundMessage {
   text?: string;
   mediaId?: string;
   mediaMime?: string;
+  /** Click-to-WhatsApp ad referral (attribution passthrough). */
+  referral?: {
+    sourceUrl?: string;
+    sourceType?: string;
+    ctwaClid?: string;
+  };
 }

@@ -8,6 +8,8 @@ import { MetaProvider } from "../whatsapp/meta.provider";
 export const SEND_QUEUE = "sequence.send";
 export const SWEEP_QUEUE = "sequence.sweep";
 export const REENGAGE_QUEUE = "reengage.sweep";
+export const APPT_SEND_QUEUE = "appt.send";
+export const APPT_FOLLOWUP_QUEUE = "appt.followup";
 
 function firstName(full: string): string {
   return full.trim().split(/\s+/)[0] ?? full;
@@ -40,10 +42,21 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
       await this.boss.createQueue(SEND_QUEUE);
       await this.boss.createQueue(SWEEP_QUEUE);
       await this.boss.createQueue(REENGAGE_QUEUE);
+      await this.boss.createQueue(APPT_SEND_QUEUE);
+      await this.boss.createQueue(APPT_FOLLOWUP_QUEUE);
       await this.boss.schedule(SWEEP_QUEUE, "* * * * *");
       await this.boss.schedule(REENGAGE_QUEUE, "*/15 * * * *");
       await this.boss.work(SEND_QUEUE, async (jobs) => {
         for (const job of jobs) await this.sendStep(String((job.data as any)?.enrollmentId ?? ""));
+      });
+      await this.boss.work(APPT_SEND_QUEUE, async (jobs) => {
+        for (const job of jobs) {
+          const d = (job.data as any) ?? {};
+          await this.sendAppointmentNudge(String(d.appointmentId ?? ""), d.kind === "reminder" ? "reminder" : "confirm");
+        }
+      });
+      await this.boss.work(APPT_FOLLOWUP_QUEUE, async (jobs) => {
+        for (const job of jobs) await this.postAppointmentFollowup(String((job.data as any)?.appointmentId ?? ""));
       });
       await this.boss.work(SWEEP_QUEUE, async () => this.sweepDue());
       await this.boss.work(REENGAGE_QUEUE, async () => this.sweepReengage(30));
@@ -205,8 +218,7 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Re-engagement scan: quiet ACTIVE contacts get a manual follow-up. */
-  async sweepReengage(inactiveDays: number) {
-    const cutoff = new Date(Date.now() - inactiveDays * 86400000);
+  async sweepReengage(inactiveDays: number) {    const cutoff = new Date(Date.now() - inactiveDays * 86400000);
     const candidates = await this.prisma.contact.findMany({
       where: {
         status: "ACTIVE",
@@ -240,5 +252,104 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
       created++;
     }
     return created;
+  }
+
+  // -- appointment nudges ----------------------------------------------------
+
+  private apptWhen(a: { date: Date; time: string | null; type: string | null }): string {
+    const day = a.date.toISOString().slice(0, 10);
+    return `${a.type ?? "appointment"} on ${day}${a.time ? ` at ${a.time}` : ""}`;
+  }
+
+  /** Schedule confirm-now, remind-before and follow-up-after nudges. */
+  async scheduleAppointmentReminders(appointmentId: string) {
+    if (!this.boss) return;
+    const a = await this.prisma.appointment.findUnique({ where: { id: appointmentId } });
+    if (!a || a.status !== "SCHEDULED") return;
+    await this.boss.send(APPT_SEND_QUEUE, { appointmentId, kind: "confirm" }, { startAfter: new Date(Date.now() + 30 * 1000) });
+    const remindAt = new Date(a.date.getTime() - 24 * 3600000);
+    if (remindAt.getTime() > Date.now() + 5 * 60 * 1000) {
+      await this.boss.send(APPT_SEND_QUEUE, { appointmentId, kind: "reminder" }, { startAfter: remindAt });
+    }
+    await this.boss.send(APPT_FOLLOWUP_QUEUE, { appointmentId }, { startAfter: new Date(a.date.getTime() + 2 * 3600000) });
+  }
+
+  private async resolveNumber(orgId: string, contactId: string) {
+    const conv = await this.prisma.conversation.findFirst({
+      where: { orgId, contactId, status: "OPEN" },
+      include: { number: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    return (
+      conv?.number ?? (await this.prisma.whatsappNumber.findFirst({ where: { orgId }, orderBy: { createdAt: "asc" } }))
+    );
+  }
+
+  async sendAppointmentNudge(appointmentId: string, kind: "confirm" | "reminder") {
+    if (!appointmentId) return;
+    const a = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { contact: true },
+    });
+    if (!a || a.status !== "SCHEDULED" || a.contact.status === "DNC") return;
+    const number = await this.resolveNumber(a.orgId, a.contactId);
+    if (!number) return;
+    const body =
+      kind === "reminder"
+        ? `Hi ${firstName(a.contact.name)}, reminder: your ${this.apptWhen(a)} is tomorrow. Reply to reschedule.`
+        : `Hi ${firstName(a.contact.name)}, confirming your ${this.apptWhen(a)}. Reply to reschedule.`;
+    try {
+      const sent = await this.sender.sendText({
+        phoneNumberId: number.providerNumberId,
+        accessToken: number.accessToken,
+        to: a.contact.phoneE164,
+        body,
+      });
+      const now = new Date();
+      await this.prisma.$transaction(async (tx) => {
+        let conversationId = (
+          await tx.conversation.findFirst({ where: { orgId: a.orgId, contactId: a.contactId, status: "OPEN" } })
+        )?.id;
+        if (!conversationId) {
+          const created = await tx.conversation.create({
+            data: { orgId: a.orgId, contactId: a.contactId, whatsappNumberId: number.id, assignedAgentId: a.contact.assignedAgentId },
+          });
+          conversationId = created.id;
+        }
+        await tx.message.create({
+          data: { orgId: a.orgId, conversationId, providerMessageId: sent.providerMessageId, direction: "OUT", type: "text", body, sentAt: now },
+        });
+        await tx.conversation.update({ where: { id: conversationId }, data: { lastOutboundAt: now, needsReply: false } });
+        await logActivity(tx, { orgId: a.orgId, contactId: a.contactId, type: "appointment.reminded", payload: { appointmentId, kind } });
+      });
+    } catch (e) {
+      await logActivity(this.prisma, {
+        orgId: a.orgId,
+        contactId: a.contactId,
+        type: "appointment.send_failed",
+        payload: { appointmentId, kind, error: (e as Error).message.slice(0, 200) },
+      });
+    }
+  }
+
+  async postAppointmentFollowup(appointmentId: string) {
+    if (!appointmentId) return;
+    const a = await this.prisma.appointment.findUnique({ where: { id: appointmentId }, include: { contact: true } });
+    if (!a || a.status !== "SCHEDULED") return;
+    const open = await this.prisma.followup.findFirst({ where: { contactId: a.contactId, doneAt: null, title: { contains: "appointment" } } });
+    if (open) return;
+    const assignee = a.assigneeId ?? a.contact.assignedAgentId;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.followup.create({
+        data: {
+          orgId: a.orgId,
+          contactId: a.contactId,
+          title: `Post-appointment follow-up with ${a.contact.name}`,
+          dueAt: new Date(),
+          assignedAgentId: assignee,
+        },
+      });
+      await logActivity(tx, { orgId: a.orgId, contactId: a.contactId, type: "appointment.followup", payload: { appointmentId } });
+    });
   }
 }
