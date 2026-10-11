@@ -1,6 +1,7 @@
 import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { logActivity } from "../contacts/activity";
 import { normalizePhone } from "../contacts/phone.util";
 import type { ActorCtx } from "../contacts/contacts.service";
@@ -19,6 +20,7 @@ export class WhatsappService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(MetaProvider) private readonly provider: WhatsappProvider,
+    @Inject(NotificationsService) private readonly notify: NotificationsService,
   ) {}
 
   // -- numbers (owner-managed) -------------------------------------------
@@ -159,6 +161,19 @@ export class WhatsappService {
         type: contact.status === "DNC" ? "contact.dnc.inbound" : "conversation.message",
         payload: { conversationId: conv.id, preview: body.slice(0, 120) } as Prisma.InputJsonValue,
       });
+      const target = conv.assignedAgentId ?? contact.assignedAgentId;
+      if (target) {
+        await this.notify.notify({
+          orgId,
+          userId: target,
+          kind: "conversation.reply",
+          title: `${contact.name} replied`,
+          body: body.slice(0, 140),
+          link: `/inbox/${conv.id}`,
+        });
+      } else {
+        await this.notify.notifyOwners(orgId, "conversation.reply", `Unassigned reply from ${contact.name}`, body.slice(0, 140), `/inbox/${conv.id}`);
+      }
       return { contactId: contact.id, conversationId: conv.id };
     });
   }
@@ -259,6 +274,16 @@ export class WhatsappService {
       }
     }
     const updated = await this.prisma.conversation.update({ where: { id }, data });
+    if (dto.assignedAgentId && dto.assignedAgentId !== conv.assignedAgentId) {
+      await this.notify.notify({
+        orgId: ctx.orgId,
+        userId: dto.assignedAgentId,
+        kind: "conversation.assigned",
+        title: `Conversation assigned to you`,
+        body: `Assigned by ${ctx.userId}`,
+        link: `/inbox/${id}`,
+      });
+    }
     await logActivity(this.prisma, {
       orgId: ctx.orgId,
       contactId: conv.contactId,

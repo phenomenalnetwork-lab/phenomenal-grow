@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nest
 import PgBoss from "pg-boss";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { logActivity } from "../contacts/activity";
 import { MetaProvider } from "../whatsapp/meta.provider";
 
@@ -28,6 +29,7 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(MetaProvider) private readonly sender: MetaProvider,
+    @Inject(NotificationsService) private readonly notify: NotificationsService,
   ) {}
 
   async onModuleInit() {
@@ -58,7 +60,10 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
       await this.boss.work(APPT_FOLLOWUP_QUEUE, async (jobs) => {
         for (const job of jobs) await this.postAppointmentFollowup(String((job.data as any)?.appointmentId ?? ""));
       });
-      await this.boss.work(SWEEP_QUEUE, async () => this.sweepDue());
+      await this.boss.work(SWEEP_QUEUE, async () => {
+        await this.sweepDue();
+        await this.sweepFollowupNotices();
+      });
       await this.boss.work(REENGAGE_QUEUE, async () => this.sweepReengage(30));
       this.log.log("Sequences engine started (pg-boss)");
     } catch (e) {
@@ -213,12 +218,65 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
           payload: { enrollmentId: e.id, attempts, error: (err as Error).message.slice(0, 200) },
         });
       });
+      if (attempts >= 5 && e.contact.assignedAgentId) {
+        await this.notify.notify({
+          orgId: e.orgId,
+          userId: e.contact.assignedAgentId,
+          kind: "sequence.attention",
+          title: `Sequence stopped: messages failing for ${e.contact.name}`,
+          link: `/contacts/${e.contactId}`,
+        });
+      }
       throw err;
     }
   }
 
+  /** Due/overdue follow-up nudges (once each per follow-up). Runs on the minute sweep. */
+  async sweepFollowupNotices() {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 60 * 60 * 1000);
+    const dueSoon = await this.prisma.followup.findMany({
+      where: { doneAt: null, dueAt: { lte: soon }, notifiedDueAt: null },
+      include: { contact: { select: { name: true } } },
+      take: 200,
+    });
+    for (const f of dueSoon) {
+      if (f.assignedAgentId) {
+        await this.notify.notify({
+          orgId: f.orgId,
+          userId: f.assignedAgentId,
+          kind: "followup.due",
+          title: `Due soon: ${f.title}`,
+          body: f.contact.name,
+          link: `/contacts/${f.contactId}`,
+        });
+      }
+      await this.prisma.followup.update({ where: { id: f.id }, data: { notifiedDueAt: now } });
+    }
+    const overdue = await this.prisma.followup.findMany({
+      where: { doneAt: null, dueAt: { lt: now }, notifiedOverdueAt: null },
+      include: { contact: { select: { name: true } } },
+      take: 200,
+    });
+    for (const f of overdue) {
+      if (f.assignedAgentId) {
+        await this.notify.notify({
+          orgId: f.orgId,
+          userId: f.assignedAgentId,
+          kind: "followup.overdue",
+          title: `Overdue: ${f.title}`,
+          body: f.contact.name,
+          link: `/followups?view=overdue`,
+        });
+      }
+      await this.prisma.followup.update({ where: { id: f.id }, data: { notifiedOverdueAt: now } });
+    }
+    return dueSoon.length + overdue.length;
+  }
+
   /** Re-engagement scan: quiet ACTIVE contacts get a manual follow-up. */
-  async sweepReengage(inactiveDays: number) {    const cutoff = new Date(Date.now() - inactiveDays * 86400000);
+  async sweepReengage(inactiveDays: number) {
+    const cutoff = new Date(Date.now() - inactiveDays * 86400000);
     const candidates = await this.prisma.contact.findMany({
       where: {
         status: "ACTIVE",
@@ -322,6 +380,15 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
         await tx.conversation.update({ where: { id: conversationId }, data: { lastOutboundAt: now, needsReply: false } });
         await logActivity(tx, { orgId: a.orgId, contactId: a.contactId, type: "appointment.reminded", payload: { appointmentId, kind } });
       });
+      if (a.assigneeId) {
+        await this.notify.notify({
+          orgId: a.orgId,
+          userId: a.assigneeId,
+          kind: "appointment.reminder",
+          title: `${kind === "reminder" ? "Reminder" : "Confirmation"} sent to ${a.contact.name}`,
+          link: `/appointments?view=today`,
+        });
+      }
     } catch (e) {
       await logActivity(this.prisma, {
         orgId: a.orgId,

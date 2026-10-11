@@ -11,9 +11,11 @@ import { SequencesModule } from "./sequences/sequences.module";
 import { HomeModule } from "./home/home.module";
 import { AppointmentsModule } from "./appointments/appointments.module";
 import { FormsModule } from "./forms/forms.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { ReportsModule } from "./reports/reports.module";
 
 @Module({
-  imports: [PrismaModule, ContactsModule, WhatsappModule, PipelinesModule, SequencesModule, HomeModule, AppointmentsModule, FormsModule],
+  imports: [PrismaModule, ContactsModule, WhatsappModule, PipelinesModule, SequencesModule, HomeModule, AppointmentsModule, FormsModule, NotificationsModule, ReportsModule],
   controllers: [HealthController, MeController],
   providers: [AuthGuard, OrgGuard],
 })

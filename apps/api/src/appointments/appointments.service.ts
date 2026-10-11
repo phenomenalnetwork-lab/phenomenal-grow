@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { logActivity } from "../contacts/activity";
 import { assertVisible, type ActorCtx } from "../contacts/contacts.service";
 import { PipelinesService } from "../pipelines/pipelines.service";
@@ -14,6 +15,7 @@ export class AppointmentsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(PipelinesService) private readonly pipes: PipelinesService,
     @Inject(SequencesEngine) private readonly engine: SequencesEngine,
+    @Inject(NotificationsService) private readonly notify: NotificationsService,
   ) {}
 
   private scope(ctx: ActorCtx): Prisma.AppointmentWhereInput {
@@ -110,6 +112,16 @@ export class AppointmentsService {
     });
     // Nudges (confirm now, remind before, follow up after) — best effort.
     this.engine.scheduleAppointmentReminders(appt.id).catch(() => undefined);
+    if (assignee && assignee !== ctx.userId) {
+      await this.notify.notify({
+        orgId: ctx.orgId,
+        userId: assignee,
+        kind: "appointment.scheduled",
+        title: `Appointment booked for ${contact!.name}`,
+        body: `${date.toISOString().slice(0, 10)}${appt.time ? ` ${appt.time}` : ""}`,
+        link: `/appointments?view=mine`,
+      });
+    }
     return appt;
   }
 

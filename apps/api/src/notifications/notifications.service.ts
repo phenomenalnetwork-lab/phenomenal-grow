@@ -1,0 +1,62 @@
+import { Inject, Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma.service";
+
+/** Action-only notifications with per-user, per-kind preferences (all on by default). */
+@Injectable()
+export class NotificationsService {
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async notify(opts: { orgId: string; userId: string; kind: string; title: string; body?: string; link?: string }) {
+    if (!opts.userId) return null;
+    const pref = await this.prisma.notificationPreference.findUnique({
+      where: { orgId_userId_kind: { orgId: opts.orgId, userId: opts.userId, kind: opts.kind } },
+    });
+    if (pref && !pref.enabled) return null;
+    const member = await this.prisma.membership.findUnique({
+      where: { orgId_userId: { orgId: opts.orgId, userId: opts.userId } },
+    });
+    if (!member || !member.active) return null;
+    return this.prisma.notification.create({
+      data: { orgId: opts.orgId, userId: opts.userId, kind: opts.kind, title: opts.title, body: opts.body ?? null, link: opts.link ?? null },
+    });
+  }
+
+  async notifyOwners(orgId: string, kind: string, title: string, body?: string, link?: string) {
+    const owners = await this.prisma.membership.findMany({ where: { orgId, role: "OWNER", active: true } });
+    for (const o of owners) {
+      await this.notify({ orgId, userId: o.userId, kind, title, body, link });
+    }
+  }
+
+  async list(orgId: string, userId: string, take = 50) {
+    const items = await this.prisma.notification.findMany({
+      where: { orgId, userId },
+      orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
+      take: Math.min(Math.max(take, 1), 200),
+    });
+    const unread = await this.prisma.notification.count({ where: { orgId, userId, readAt: null } });
+    return { items, unread };
+  }
+
+  async markRead(orgId: string, userId: string, id: string) {
+    const n = await this.prisma.notification.findFirst({ where: { id, orgId, userId } });
+    if (!n) return null;
+    return this.prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
+  }
+
+  async markAllRead(orgId: string, userId: string) {
+    return this.prisma.notification.updateMany({ where: { orgId, userId, readAt: null }, data: { readAt: new Date() } });
+  }
+
+  async preferences(orgId: string, userId: string) {
+    return this.prisma.notificationPreference.findMany({ where: { orgId, userId } });
+  }
+
+  async setPreference(orgId: string, userId: string, kind: string, enabled: boolean) {
+    return this.prisma.notificationPreference.upsert({
+      where: { orgId_userId_kind: { orgId, userId, kind } },
+      update: { enabled },
+      create: { orgId, userId, kind, enabled },
+    });
+  }
+}

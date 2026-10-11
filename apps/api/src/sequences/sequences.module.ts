@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MetaProvider } from "../whatsapp/meta.provider";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { SequencesEngine } from "./engine";
 import { SequencesService } from "./sequences.service";
 import { FollowupsService } from "./followups.service";
@@ -12,6 +13,7 @@ import {
 } from "./sequences.controller";
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     SequencesController,
     ContactEnrollmentsController,

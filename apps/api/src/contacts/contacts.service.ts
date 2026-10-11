@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { normalizePhone } from "./phone.util";
 import { logActivity } from "./activity";
 
@@ -45,7 +46,7 @@ export function assertVisible(contact: { assignedAgentId: string | null } | null
 
 @Injectable()
 export class ContactsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(NotificationsService) private readonly notify: NotificationsService) {}
 
   private baseWhere(ctx: ActorCtx, q: ListQuery) {
     const where: Prisma.ContactWhereInput = { orgId: ctx.orgId };
@@ -214,6 +215,16 @@ export class ContactsService {
       }
       for (const e of events) {
         await logActivity(tx, { orgId: ctx.orgId, contactId: id, type: e.type, actorId: ctx.userId, payload: e.payload });
+      }
+      if (dto.assignedAgentId && dto.assignedAgentId !== current!.assignedAgentId && dto.assignedAgentId !== ctx.userId) {
+        const c0 = await tx.contact.findUnique({ where: { id } });
+        await this.notify.notify({
+          orgId: ctx.orgId,
+          userId: dto.assignedAgentId,
+          kind: "contact.assigned",
+          title: `${c0?.name ?? "A contact"} assigned to you`,
+          link: `/contacts/${id}`,
+        });
       }
       if (dto.status === "DNC") {
         // Hard stop: no automated follow-up may ever reach this contact again.

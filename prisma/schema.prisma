@@ -341,14 +341,16 @@ model ContactPipeline {
 
 // Manual follow-ups: "Call John tomorrow at 10 AM".
 model Followup {
-  id              String    @id @default(cuid())
-  orgId           String
-  contactId       String
-  title           String
-  dueAt           DateTime
-  assignedAgentId String?
-  doneAt          DateTime?
-  createdAt       DateTime  @default(now())
+  id                String    @id @default(cuid())
+  orgId             String
+  contactId         String
+  title             String
+  dueAt             DateTime
+  assignedAgentId   String?
+  doneAt            DateTime?
+  notifiedDueAt     DateTime?
+  notifiedOverdueAt DateTime?
+  createdAt         DateTime  @default(now())
 
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
@@ -439,9 +441,6 @@ enum AppointmentStatus {
   CANCELLED
   NOSHOW
 }
-
-// Lightweight appointments (not a booking platform): date + time + type +
-// assignee + status, linked to pipelines and confirm/remind nudges.
 model Appointment {
   id         String            @id @default(cuid())
   orgId      String
@@ -479,4 +478,29 @@ model CaptureForm {
   updatedAt  DateTime @updatedAt
 
   @@index([orgId])
+}
+
+// Action-only notifications (if it doesn't require action, don't interrupt).
+model Notification {
+  id        String    @id @default(cuid())
+  orgId     String
+  userId    String
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([orgId, userId, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id      String  @id @default(cuid())
+  orgId   String
+  userId  String
+  kind    String
+  enabled Boolean @default(true)
+
+  @@unique([orgId, userId, kind])
 }

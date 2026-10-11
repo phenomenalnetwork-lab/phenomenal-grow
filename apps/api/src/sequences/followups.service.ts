@@ -1,11 +1,12 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { logActivity } from "../contacts/activity";
 import { assertVisible, type ActorCtx } from "../contacts/contacts.service";
 
 @Injectable()
 export class FollowupsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(NotificationsService) private readonly notify: NotificationsService) {}
 
   async list(ctx: ActorCtx, view: string) {
     const where: Record<string, unknown> = { orgId: ctx.orgId, doneAt: null };
@@ -56,6 +57,16 @@ export class FollowupsService {
       await logActivity(tx, { orgId: ctx.orgId, contactId, type: "followup.created", actorId: ctx.userId, payload: { followupId: created.id, title } });
       return created;
     });
+    if (assignee && assignee !== ctx.userId) {
+      await this.notify.notify({
+        orgId: ctx.orgId,
+        userId: assignee,
+        kind: "followup.created",
+        title: `Follow-up assigned: ${title}`,
+        body: `Due ${dueAt.toISOString().slice(0, 16)}`,
+        link: `/followups?view=mine`,
+      });
+    }
     return f;
   }
 
