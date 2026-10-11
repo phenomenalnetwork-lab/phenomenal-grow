@@ -2,6 +2,7 @@ import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } fro
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { decryptToken } from "../common/crypto";
 import { logActivity } from "../contacts/activity";
 import { normalizePhone } from "../contacts/phone.util";
 import type { ActorCtx } from "../contacts/contacts.service";
@@ -41,10 +42,12 @@ export class WhatsappService {
     if (!label || !providerNumberId || !accessToken) {
       throw new ForbiddenException("label, providerNumberId and accessToken are required");
     }
+    const { encryptToken } = await import("../common/crypto");
+    const stored = process.env.ENCRYPTION_KEY ? encryptToken(accessToken) : accessToken;
     return this.prisma.whatsappNumber.upsert({
       where: { orgId_providerNumberId: { orgId: ctx.orgId, providerNumberId } },
-      update: { label, accessToken, businessAccountId: dto?.businessAccountId?.trim() || null },
-      create: { orgId: ctx.orgId, label, providerNumberId, accessToken, businessAccountId: dto?.businessAccountId?.trim() || null },
+      update: { label, accessToken: stored, businessAccountId: dto?.businessAccountId?.trim() || null },
+      create: { orgId: ctx.orgId, label, providerNumberId, accessToken: stored, businessAccountId: dto?.businessAccountId?.trim() || null },
     });
   }
 
@@ -120,7 +123,7 @@ export class WhatsappService {
 
       let mediaKey: string | null = null;
       if (msg.mediaId) {
-        const media = await this.provider.fetchMedia({ mediaId: msg.mediaId, accessToken: number.accessToken });
+        const media = await this.provider.fetchMedia({ mediaId: msg.mediaId, accessToken: decryptToken(number.accessToken) });
         if (media) {
           try {
             const { putObject } = await import("@pgrow/storage");
@@ -315,7 +318,7 @@ export class WhatsappService {
     }
     const sent = await this.provider.sendText({
       phoneNumberId: conv.number.providerNumberId,
-      accessToken: conv.number.accessToken,
+      accessToken: decryptToken(conv.number.accessToken),
       to: contact.phoneE164,
       body: text.trim(),
     });
@@ -345,3 +348,4 @@ export class WhatsappService {
     return { ok: true, providerMessageId: sent.providerMessageId };
   }
 }
+

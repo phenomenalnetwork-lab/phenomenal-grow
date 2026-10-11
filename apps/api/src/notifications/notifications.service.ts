@@ -1,6 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma.service";
 
+const VAPID_SUBJECT = "mailto:admin@phenomenalgrow.local";
+
+function vapidConfigured(): boolean {
+  return Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+}
+
 /** Action-only notifications with per-user, per-kind preferences (all on by default). */
 @Injectable()
 export class NotificationsService {
@@ -16,9 +22,48 @@ export class NotificationsService {
       where: { orgId_userId: { orgId: opts.orgId, userId: opts.userId } },
     });
     if (!member || !member.active) return null;
-    return this.prisma.notification.create({
+    const created = await this.prisma.notification.create({
       data: { orgId: opts.orgId, userId: opts.userId, kind: opts.kind, title: opts.title, body: opts.body ?? null, link: opts.link ?? null },
     });
+    void this.pushToUser(opts.userId, opts.title, opts.body, opts.link);
+    return created;
+  }
+
+  /** Best-effort Web Push fan-out; dead subscriptions are pruned. */
+  async pushToUser(userId: string, title: string, body?: string, link?: string) {
+    if (!vapidConfigured()) return;
+    try {
+      const webpush = await import("web-push");
+      webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+      const subs = await this.prisma.pushSubscription.findMany({ where: { userId } });
+      const payload = JSON.stringify({ title, body: body ?? "", link: link ?? "/" });
+      for (const s of subs) {
+        try {
+          await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys as never }, payload);
+        } catch (e) {
+          const code = (e as { statusCode?: number })?.statusCode;
+          if (code === 404 || code === 410) {
+            await this.prisma.pushSubscription.delete({ where: { id: s.id } });
+          }
+        }
+      }
+    } catch {
+      // Push is advisory — the in-app notification is the record.
+    }
+  }
+
+  async saveSubscription(userId: string, endpoint: string, keys: unknown) {
+    if (!endpoint || !keys) return null;
+    return this.prisma.pushSubscription.upsert({
+      where: { endpoint },
+      update: { userId, keys: keys as never },
+      create: { userId, endpoint, keys: keys as never },
+    });
+  }
+
+  async removeSubscription(userId: string, endpoint: string) {
+    await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
+    return { ok: true };
   }
 
   async notifyOwners(orgId: string, kind: string, title: string, body?: string, link?: string) {

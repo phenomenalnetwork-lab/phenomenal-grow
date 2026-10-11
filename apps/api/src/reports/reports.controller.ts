@@ -24,4 +24,9 @@ export class ReportsController {
   csv(@Req() req: any, @Query("from") from?: string, @Query("to") to?: string) {
     return this.reports.overviewCsv(this.ctx(req), from, to);
   }
+
+  @Get("dnc-audit")
+  dncAudit(@Req() req: any) {
+    return this.reports.dncAudit(this.ctx(req));
+  }
 }

@@ -3,6 +3,7 @@ import PgBoss from "pg-boss";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { decryptToken } from "../common/crypto";
 import { logActivity } from "../contacts/activity";
 import { MetaProvider } from "../whatsapp/meta.provider";
 
@@ -155,7 +156,7 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
     try {
       const sent = await this.sender.sendText({
         phoneNumberId: number.providerNumberId,
-        accessToken: number.accessToken,
+        accessToken: decryptToken(number.accessToken),
         to: e.contact.phoneE164,
         body,
       });
@@ -359,7 +360,7 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
     try {
       const sent = await this.sender.sendText({
         phoneNumberId: number.providerNumberId,
-        accessToken: number.accessToken,
+        accessToken: decryptToken(number.accessToken),
         to: a.contact.phoneE164,
         body,
       });
@@ -420,3 +421,4 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
     });
   }
 }
+

@@ -504,3 +504,14 @@ model NotificationPreference {
 
   @@unique([orgId, userId, kind])
 }
+
+// Web Push subscriptions (PWA push for assignments/replies).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  keys      Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../auth.guard";
 import { OrgGuard } from "../org.guard";
 import { NotificationsService } from "./notifications.service";
@@ -40,5 +40,21 @@ export class NotificationsController {
   setPref(@Req() req: any, @Body() dto: any) {
     const { orgId, userId } = this.scope(req);
     return this.notes.setPreference(orgId, userId, String(dto?.kind ?? ""), dto?.enabled !== false);
+  }
+
+  @Post("push/subscriptions")
+  subscribe(@Req() req: any, @Body() dto: any) {
+    return this.notes.saveSubscription(req.user.id, String(dto?.endpoint ?? ""), dto?.keys);
+  }
+
+  @Get("push/public-key")
+  publicKey() {
+    const key = process.env.VAPID_PUBLIC_KEY ?? "";
+    return { key: key || null };
+  }
+
+  @Delete("push/subscriptions")
+  unsubscribe(@Req() req: any, @Body() dto: any) {
+    return this.notes.removeSubscription(req.user.id, String(dto?.endpoint ?? ""));
   }
 }

@@ -20,7 +20,7 @@ export default async function Home() {
   const ms = await myMemberships(session.user.id);
   const active = await getActiveOrgId();
   const m = (active && ms.find((x) => x.orgId === active)) ?? ms[0];
-  if (!m) redirect("/settings");
+  if (!m) redirect("/onboarding");
   const isOwner = m.role === "OWNER";
 
   const res = await apiFetch<any>("/home", { orgId: m.orgId });

@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { NOTIFICATION_KINDS } from "@pgrow/types";
 import { Shell } from "../shell";
 import { markRead, markAllRead, setPreference } from "./actions";
+import { PushSubscribe } from "./push-subscribe";
 
 export default async function NotificationsPage() {
   const session = await getSession();
@@ -40,6 +41,7 @@ export default async function NotificationsPage() {
         </ul>
         {list.items.length === 0 && <p>No notifications. Only actions interrupt you here.</p>}
         <h3>Preferences</h3>
+        <PushSubscribe />
         {NOTIFICATION_KINDS.map((k) => (
           <form key={k} action={setPreference.bind(null, k)}>
             <label>

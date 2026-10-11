@@ -40,6 +40,8 @@ export default async function ReportsPage({
     );
   }
   const o = res.data;
+  const dnc = await apiFetch<any>("/reports/dnc-audit", { orgId: m.orgId });
+  const audit = dnc.ok ? dnc.data : null;
   return (
     <Shell>
       <div className="card">
@@ -71,8 +73,7 @@ export default async function ReportsPage({
           {o.followups.outstanding}
         </p>
 
-        <h3>Conversions ({o.conversions.rate}% rate)</h3>
-        <p>{o.conversions.byOutcome.map((g: any) => `${g.outcome}: ${g._count}`).join(" · ")}</p>
+        <h3>Conversions ({o.conversions.rate}% rate)</h3>        <p>{o.conversions.byOutcome.map((g: any) => `${g.outcome}: ${g._count}`).join(" · ")}</p>
         <p>
           <small>Not-converted reasons: {o.conversions.reasons.map((g: any) => `${g.outcomeReason ?? "—"}: ${g._count}`).join(" · ") || "—"}</small>
         </p>
@@ -99,8 +100,7 @@ export default async function ReportsPage({
           </tbody>
         </table>
 
-        <h3>Agents</h3>
-        <table>
+        <h3>Agents</h3>        <table>
           <thead>
             <tr>
               <th>Agent</th>
@@ -124,6 +124,17 @@ export default async function ReportsPage({
             ))}
           </tbody>
         </table>
+
+        <h3>DNC compliance audit</h3>
+        {audit ? (
+          <p>
+            DNC contacts: {audit.dncContacts} · Active automations on DNC: {audit.activeEnrollmentsOnDnc} · Outbound
+            messages to DNC: {audit.outboundMessagesToDnc} ·{" "}
+            <strong>{audit.compliant ? "COMPLIANT" : "ACTION REQUIRED"}</strong>
+          </p>
+        ) : (
+          <p>Audit unavailable.</p>
+        )}
       </div>
     </Shell>
   );

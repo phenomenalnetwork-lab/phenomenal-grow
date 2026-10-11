@@ -121,8 +121,7 @@ export class ReportsService {
     };
   }
 
-  async overviewCsv(ctx: ActorCtx, from?: string, to?: string): Promise<string> {
-    const o = await this.overview(ctx, from, to);
+  async overviewCsv(ctx: ActorCtx, from?: string, to?: string): Promise<string> {    const o = await this.overview(ctx, from, to);
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = ["section,metric,value"];
     lines.push(["contacts", "new", o.contacts.new].map(esc).join(","));
@@ -147,5 +146,35 @@ export class ReportsService {
       lines.push(["agent", `${a.user.email}:conversions`, a.conversions].map(esc).join(","));
     }
     return lines.join("\n");
+  }
+
+  /** DNC compliance audit: every automated send path must respect Do Not Contact. */
+  async dncAudit(ctx: ActorCtx) {
+    this.requireOwner(ctx);
+    const { orgId } = ctx;
+    const dncIds = (
+      await this.prisma.contact.findMany({ where: { orgId, status: "DNC" }, select: { id: true } })
+    ).map((c) => c.id);
+    const [dncContacts, activeEnrollmentsOnDnc, outToDnc, recentDnc] = await Promise.all([
+      Promise.resolve(dncIds.length),
+      this.prisma.enrollment.count({ where: { orgId, status: "ACTIVE", contactId: { in: dncIds } } }),
+      dncIds.length
+        ? this.prisma.message.count({
+            where: { orgId, direction: "OUT", conversation: { contactId: { in: dncIds } } },
+          })
+        : Promise.resolve(0),
+      this.prisma.activity.findMany({
+        where: { orgId, type: { in: ["contact.dnc", "contact.dnc.inbound", "sequence.stopped"] } },
+        orderBy: { at: "desc" },
+        take: 20,
+      }),
+    ]);
+    return {
+      dncContacts,
+      activeEnrollmentsOnDnc,
+      outboundMessagesToDnc: outToDnc,
+      compliant: activeEnrollmentsOnDnc === 0 && outToDnc === 0,
+      recentEvents: recentDnc,
+    };
   }
 }

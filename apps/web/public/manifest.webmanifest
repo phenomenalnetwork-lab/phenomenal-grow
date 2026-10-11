@@ -1,0 +1,13 @@
+{
+  "name": "Phenomenal Grow",
+  "short_name": "Phenomenal",
+  "description": "Turn Conversations Into Growth",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#16a34a",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
