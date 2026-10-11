@@ -1,3 +1,6 @@
+# Production / VPS parity file. WINDOWS DEV does NOT use this:
+# dev Postgres runs as a native Windows service (simpler, no WSL/Docker).
+# The VPS runs postgres + api + worker from Compose (api/worker images added later).
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,12 +13,6 @@ services:
       - "5432:5432"
     volumes:
       - pgrow-data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
 
 volumes:
   pgrow-data:

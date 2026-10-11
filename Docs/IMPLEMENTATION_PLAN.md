@@ -23,8 +23,8 @@
 | Monorepo | Turborepo + pnpm workspaces | One repo for web + api + jobs + shared types; matches 8 product areas without fragmentation |
 | Web app | Next.js (App Router, TypeScript) + Tailwind + shadcn/ui | Covers PRD mobile (`do the work`) + desktop (`manage the work`) as one responsive PWA; fastest to V1, no native app needed |
 | API | NestJS (TypeScript, REST) + Prisma ORM | Clear module boundaries (contacts, inbox, pipelines, follow-ups, appointments, orgs); RBAC + multi-tenancy easier than Next API routes alone |
-| DB | Device-local PostgreSQL via Docker Compose (`docker-compose.yml`) | No managed DB in dev; mirrors prod Postgres; JSONB for custom fields, full-text search for contacts |
-| Queue / scheduler | Redis + BullMQ via Docker Compose | Required for: follow-up sequences, reminders, re-engagement timers, DNC enforcement, appointment nudges |
+| DB | Device-native PostgreSQL (Windows service) in dev; Compose Postgres on VPS | No WSL/Docker needed on laptop; JSONB for custom fields, full-text search for contacts |
+| Queue / scheduler | pg-boss (Postgres-backed, no Redis anywhere) | Required for: follow-up sequences, reminders, re-engagement timers, DNC enforcement, appointment nudges. One less service to run. |
 | Realtime | WebSocket (Socket.io) API → Next.js | Inbox needs-reply, assignment, reply-received badges without polling |
 | Auth | Better Auth (email + password) in `apps/web`, Prisma-backed sessions | PRD needs multi-org membership + Owner/Agent roles; NestJS API verifies the Better Auth session per request |
 | File storage | Cloudflare R2 via S3-compatible API (`packages/storage`). Supabase is NOT used. | Inbox attachments view; R2 = S3 API, no vendor SDK lock-in |
