@@ -1,0 +1,86 @@
+// Phase 0 subset of §2.5 data model. Full model arrives in Phases 1-4.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  OWNER
+  AGENT
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  DNC
+}
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  contacts    Contact[]
+  activities  Activity[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+}
+
+model Membership {
+  id      String         @id @default(cuid())
+  orgId   String
+  userId  String
+  role    MembershipRole @default(AGENT)
+  active  Boolean        @default(true)
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+model Contact {
+  id        String        @id @default(cuid())
+  orgId     String
+  name      String
+  phoneE164 String
+  email     String?
+  status    ContactStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, phoneE164])
+  @@index([orgId, status])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  orgId     String
+  contactId String?
+  type      String
+  actorId   String?
+  payload   Json?
+  at        DateTime @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, contactId])
+}

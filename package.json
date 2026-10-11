@@ -1,0 +1,30 @@
+{
+  "name": "phenomenal-grow",
+  "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "db:seed": "tsx scripts/seed.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "prisma": "^5.22.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "onlyBuiltDependencies": [
+    "@nestjs/core",
+    "@prisma/engines",
+    "esbuild",
+    "prisma",
+    "sharp"
+  ]
+}
