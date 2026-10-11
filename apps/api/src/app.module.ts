@@ -5,9 +5,10 @@ import { AuthGuard } from "./auth.guard";
 import { OrgGuard } from "./org.guard";
 import { PrismaModule } from "./prisma.module";
 import { ContactsModule } from "./contacts/contacts.module";
+import { WhatsappModule } from "./whatsapp/whatsapp.module";
 
 @Module({
-  imports: [PrismaModule, ContactsModule],
+  imports: [PrismaModule, ContactsModule, WhatsappModule],
   controllers: [HealthController, MeController],
   providers: [AuthGuard, OrgGuard],
 })

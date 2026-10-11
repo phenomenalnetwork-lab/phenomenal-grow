@@ -2,7 +2,7 @@ import { nav } from "@pgrow/config";
 
 const hrefs: Record<string, string> = {
   Home: "/",
-  Inbox: "/contacts",
+  Inbox: "/inbox",
   Contacts: "/contacts",
   Pipelines: "/contacts",
   "Follow-ups": "/contacts",

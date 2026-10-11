@@ -210,6 +210,73 @@ model ContactMerge {
   @@index([orgId])
 }
 
+enum ConvStatus {
+  OPEN
+  CLOSED
+}
+
+enum MsgDirection {
+  IN
+  OUT
+}
+
+// Organisation-owned WhatsApp Business numbers (Meta Cloud API, direct).
+// Tokens stored plaintext in Phase 2 — encrypt at rest before production.
+model WhatsappNumber {
+  id               String   @id @default(cuid())
+  orgId            String
+  label            String
+  provider         String   @default("meta")
+  providerNumberId String
+  accessToken      String
+  businessAccountId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  conversations Conversation[]
+
+  @@unique([orgId, providerNumberId])
+  @@index([providerNumberId])
+}
+
+model Conversation {
+  id               String     @id @default(cuid())
+  orgId            String
+  contactId        String
+  whatsappNumberId String
+  status           ConvStatus @default(OPEN)
+  assignedAgentId  String?
+  needsReply       Boolean    @default(false)
+  lastInboundAt    DateTime?
+  lastOutboundAt   DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  number   WhatsappNumber @relation(fields: [whatsappNumberId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([orgId, status, updatedAt])
+  @@index([orgId, contactId])
+}
+
+model Message {
+  id                String       @id @default(cuid())
+  orgId             String
+  conversationId    String
+  providerMessageId String       @unique
+  direction         MsgDirection
+  type              String       @default("text")
+  body              String?
+  mediaKey          String?
+  mediaMime         String?
+  sentAt            DateTime     @default(now())
+  createdAt         DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+}
+
 model Activity {
   id        String   @id @default(cuid())
   orgId     String
