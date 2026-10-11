@@ -55,13 +55,13 @@ export default async function Onboarding() {
               <li>
                 {done.pipeline ? "✓" : "3."} <strong>Pick a starting journey</strong>
                 {!done.pipeline && (
-                  <p>
+                  <div>
                     {(["business", "church", "coach"] as const).map((t) => (
                       <form key={t} action={templatePipeline.bind(null, t)} style={{ display: "inline", marginRight: 8 }}>
                         <button type="submit">Start with {t}</button>
                       </form>
                     ))}
-                  </p>
+                  </div>
                 )}
               </li>
               <li>

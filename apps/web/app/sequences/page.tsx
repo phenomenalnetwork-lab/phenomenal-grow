@@ -34,14 +34,14 @@ export default async function SequencesPage() {
         </p>
         {isOwner && (
           <>
-            <p>
+            <div>
               Guided templates:{" "}
               {TEMPLATES.map((t) => (
                 <form key={t} action={templateSequence.bind(null, t)} style={{ display: "inline", marginRight: 8 }}>
                   <button type="submit">{t}</button>
                 </form>
               ))}
-            </p>
+            </div>
             <h3>Custom sequence</h3>
             <form action={createSequence}>
               <input name="name" placeholder="Sequence name" required />

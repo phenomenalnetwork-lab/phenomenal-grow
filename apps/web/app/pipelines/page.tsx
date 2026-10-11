@@ -27,14 +27,14 @@ export default async function PipelinesPage() {
               <input name="name" placeholder="New pipeline name" required />
               <button type="submit">Create</button>
             </form>
-            <p>
+            <div>
               Start from a template:{" "}
               {(["business", "church", "coach"] as const).map((t) => (
                 <form key={t} action={templatePipeline.bind(null, t)} style={{ display: "inline", marginRight: 8 }}>
                   <button type="submit">{t}</button>
                 </form>
               ))}
-            </p>
+            </div>
           </>
         )}
         {pipes.map((p: any) => (
