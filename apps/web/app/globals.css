@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --pg-action: #16a34a;
-  --pg-action-dark: #15803d;
+  --pg-action: #0891b2;
+  --pg-action-dark: #0e7490;
   --pg-due: #f59e0b;
   --pg-due-bg: #fef3c7;
   --pg-overdue: #dc2626;
@@ -30,7 +30,7 @@ body {
 h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
 h3 { font-size: 14px; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pg-muted); }
 h4 { font-size: 13px; margin: 14px 0 6px; }
-a { color: #15803d; }
+a { color: #0e7490; }
 small { color: var(--pg-muted); }
 
 /* ---- layout ---- */
@@ -128,7 +128,7 @@ input, select, textarea {
   margin: 2px 6px 2px 0;
   max-width: 100%;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid #86efac; border-color: var(--pg-action); }
+input:focus, select:focus, textarea:focus { outline: 2px solid #a5f3fc; border-color: var(--pg-action); }
 button {
   font: inherit;
   font-weight: 600;
@@ -141,7 +141,7 @@ button {
   cursor: pointer;
   min-height: 36px;
 }
-button:hover { background: #166534; }
+button:hover { background: #155e75; }
 button.secondary { background: #e2e8f0; color: #334155; }
 button.secondary:hover { background: #cbd5e1; }
 button.danger { background: #b91c1c; }
@@ -180,8 +180,8 @@ form.inline { display: inline; }
 
 /* ---- dark theme ---- */
 html.dark {
-  --pg-action: #4ade80;
-  --pg-action-dark: #22c55e;
+  --pg-action: #22d3ee;
+  --pg-action-dark: #0891b2;
   --pg-due-bg: #451a03;
   --pg-overdue-bg: #450a0a;
   --pg-conversion-bg: #2e1065;
@@ -194,7 +194,7 @@ html.dark {
 html.dark body { background: var(--pg-bg); color: var(--pg-ink); }
 html.dark .card { box-shadow: none; }
 html.dark input, html.dark select, html.dark textarea { background: #0b1220; border-color: #334155; color: var(--pg-ink); }
-html.dark a { color: #4ade80; }
+html.dark a { color: #22d3ee; }
 html.dark .badge-muted { background: #334155; color: #e2e8f0; }
 html.dark .badge-due { background: var(--pg-due-bg); color: #fcd34d; }
 html.dark .badge-overdue { background: var(--pg-overdue-bg); color: #fca5a5; }
@@ -226,7 +226,7 @@ html.dark button.secondary:hover { background: #334155; }
   display: inline-block; background: var(--pg-action-dark); color: #fff !important;
   padding: 9px 20px; border-radius: 999px; font-weight: 700;
 }
-.cta:hover { background: #166534; }
+.cta:hover { background: #155e75; }
 .cta.big { font-size: 17px; padding: 12px 30px; }
 .ghost {
   display: inline-block; border: 1px solid #cbd5e1; color: var(--pg-ink) !important;

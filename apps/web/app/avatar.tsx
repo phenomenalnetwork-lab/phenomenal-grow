@@ -1,4 +1,4 @@
-const PALETTE = ["#0d9488", "#7c3aed", "#2563eb", "#db2777", "#ea580c", "#16a34a", "#0891b2", "#4d7c0f"];
+const PALETTE = ["#0d9488", "#7c3aed", "#2563eb", "#db2777", "#ea580c", "#0891b2", "#0284c7", "#4d7c0f"];
 
 export function colorFor(name: string): string {
   let h = 0;

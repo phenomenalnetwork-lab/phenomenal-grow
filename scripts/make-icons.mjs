@@ -64,9 +64,9 @@ function makePng(size) {
       const inside = dx * dx + dy * dy <= R * R;
       const i = (y * size + x) * 4;
       if (inside) {
-        px.buf[i] = 22;
-        px.buf[i + 1] = 163;
-        px.buf[i + 2] = 74;
+        px.buf[i] = 8;
+        px.buf[i + 1] = 145;
+        px.buf[i + 2] = 178;
         px.buf[i + 3] = 255;
       } else {
         px.buf[i + 3] = 0;
