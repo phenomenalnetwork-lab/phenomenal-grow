@@ -1,174 +1,129 @@
 import { redirect } from "next/navigation";
-import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
-import { apiFetch } from "@/lib/api";
-import { Shell } from "./shell";
-import { StatusBadge } from "./badges";
-import { Avatar } from "./avatar";
+import { getSession } from "@/lib/orgs";
+import { LogoMark } from "./logo";
 
-function Section({ title, link, tone, children }: { title: string; link?: string; tone?: "hot" | "warm" | "calm"; children: React.ReactNode }) {
-  return (
-    <div className={`section priority priority-${tone ?? "calm"}`}>
-      <h3>
-        {title} {link && <a href={link}>→</a>}
-      </h3>
-      {children}
-    </div>
-  );
-}
+const JOURNEY = ["Capture", "Understand", "Act", "Follow Up", "Convert", "Retain", "Re-engage"];
 
-export default async function Home() {
+const AREAS = [
+  { name: "Inbox", text: "Every WhatsApp conversation in one working view — reply without leaving the app." },
+  { name: "Contacts", text: "One record per relationship, with full history, notes, tags and timeline." },
+  { name: "Pipelines", text: "Church, business or coaching journeys with custom stages and outcomes." },
+  { name: "Follow-ups", text: "Manual nudges plus guided sequences that pause when people reply." },
+  { name: "Appointments", text: "Lightweight scheduling with confirmations and reminders." },
+  { name: "Reports", text: "Sources, conversions, agents — what happened and what needs attention." },
+  { name: "Home", text: "An action dashboard that answers: who needs me right now?" },
+  { name: "Settings", text: "Team, numbers, forms and preferences per organisation." },
+];
+
+const AUDIENCES = [
+  { name: "Businesses", text: "Capture enquiries, follow up consistently and convert without admin overhead." },
+  { name: "Churches", text: "Welcome visitors, organise relationships and walk people into community." },
+  { name: "Coaches & solo pros", text: "Never lose an enquiry — from first message to paying client." },
+];
+
+export default async function Landing() {
   const session = await getSession();
-  if (!session) redirect("/login");
-  const ms = await myMemberships(session.user.id);
-  const active = await getActiveOrgId();
-  const m = (active && ms.find((x) => x.orgId === active)) ?? ms[0];
-  if (!m) redirect("/onboarding");
-  const isOwner = m.role === "OWNER";
-
-  const res = await apiFetch<any>("/home", { orgId: m.orgId });
-  if (!res.ok) redirect("/settings");
-  const d = res.data;
-  const s = d.snapshot;
+  if (session) redirect("/home");
 
   return (
-    <Shell accent="home">
-      <div className="card card-accent">
-        <span className="badge">{isOwner ? `${m.org.name} · Owner` : `${m.org.name} · My Day`}</span>
-        <h2>Who needs me right now?</h2>
+    <div className="landing">
+      <header className="landing-nav">
+        <span className="landing-brand">
+          <LogoMark size={30} />
+          <strong>Phenomenal Grow</strong>
+        </span>
+        <span>
+          <a href="/login">Sign in</a>{" "}
+          <a href="/login" className="cta">
+            Get started
+          </a>
+        </span>
+      </header>
 
-        <Section title={`Needs Reply (${d.needsReply.length})`} link="/inbox?view=needs-reply" tone="hot">
-          <ul className="clean">
-            {d.needsReply.map((c: any) => (
-              <li key={c.id} className="hot">
-                <Avatar name={c.contact?.name ?? "?"} />
-                <a href={`/inbox/${c.id}`}>
-                  <strong>{c.contact?.name}</strong> ({c.contact?.phoneE164})
-                </a>{" "}
-                <small>· {c.number?.label}</small>
-              </li>
-            ))}
-            {d.needsReply.length === 0 && <li className="empty">All caught up.</li>}
-          </ul>
-        </Section>
-
-        <Section title={`Overdue (${d.overdue.length})`} link="/followups?view=overdue" tone="hot">
-          <ul className="clean">
-            {d.overdue.map((f: any) => (
-              <li key={f.id} className="hot">
-                <Avatar name={f.contact?.name ?? "?"} size={24} />
-                <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}{" "}
-                <small>(due {String(f.dueAt).slice(0, 16)})</small>
-              </li>
-            ))}
-            {d.overdue.length === 0 && <li className="empty">Nothing overdue.</li>}
-          </ul>
-        </Section>
-
-        <Section title={`Due Today (${d.dueToday.length})`} link="/followups?view=today" tone="warm">
-          <ul className="clean">
-            {d.dueToday.map((f: any) => (
-              <li key={f.id} className="warm">
-                <Avatar name={f.contact?.name ?? "?"} size={24} />
-                <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}
-              </li>
-            ))}
-            {d.dueToday.length === 0 && <li className="empty">Nothing due today.</li>}
-          </ul>
-        </Section>
-
-        <Section title={`New Contacts (${d.newContacts.length})`} link="/contacts" tone="calm">
-          <ul className="clean">
-            {d.newContacts.map((c: any) => (
-              <li key={c.id}>
-                <Avatar name={c.name} size={24} />
-                <a href={`/contacts/${c.id}`}>{c.name}</a> <small>· next: {c.suggested}</small>
-              </li>
-            ))}
-            {d.newContacts.length === 0 && <li className="empty">No new contacts this week.</li>}
-          </ul>
-        </Section>
-
-        <Section title={`Active Opportunities (${d.opportunities.length})`} link="/pipelines" tone="calm">
-          <ul className="clean">
-            {d.opportunities.map((o: any) => (
-              <li key={o.id}>
-                <Avatar name={o.contact?.name ?? "?"} size={24} />
-                <a href={`/contacts/${o.contactId}`}>{o.contact?.name}</a> <small>· {o.pipeline?.name} / {o.stage?.name} · next: {o.suggested}</small>
-              </li>
-            ))}
-            {d.opportunities.length === 0 && <li className="empty">No active opportunities.</li>}
-          </ul>
-        </Section>
-
-        <Section title="Today's progress">
-          <p>
-            {d.completedToday.followups.length} follow-up(s) completed · {d.completedToday.replies} replie(s) sent
-          </p>
-          <ul>
-            {d.completedToday.followups.map((f: any) => (
-              <li key={f.id}>
-                ✓ {f.title} (<a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a>)
-              </li>
-            ))}
-          </ul>
-          <p>Appointments today: {d.appointmentsToday.length}</p>
-          <ul>
-            {d.appointmentsToday.map((a: any) => (
-              <li key={a.id}>
-                <a href={`/contacts/${a.contactId}`}>{a.contact?.name}</a> — {a.time ?? ""} {a.type ?? ""}
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        <Section title="Snapshot">
-          <p>
-            Contacts: {(s.contactsByStatus as any[]).map((g) => `${g.status} ${g._count}`).join(" · ")}
+      <main>
+        <section className="hero">
+          <p className="kicker">WhatsApp Conversation & Relationship CRM</p>
+          <h1>
+            Turn Conversations
+            <br />
+            Into Growth.
+          </h1>
+          <p className="lede">
+            People start conversations — organisations lose opportunities by failing to capture, organise and follow up.
+            Phenomenal Grow makes sure important conversations never disappear into WhatsApp.
           </p>
           <p>
-            Conversations open: {s.conversationsOpen} ({s.needsReplyCount} need reply) · Follow-ups open:{" "}
-            {s.followupsOpen} ({s.followupsOverdue} overdue, {s.followupsDueToday} due today) · Active sequences:{" "}
-            {s.enrollmentsActive}
+            <a href="/login" className="cta big">
+              Start free
+            </a>{" "}
+            <a href="/login?mode=up" className="ghost">
+              Create account
+            </a>
           </p>
-          <p>
-            Outcomes: {(s.outcomes as any[]).map((g) => `${g.outcome} ${g._count}`).join(" · ")} · Converted total:{" "}
-            {s.convertedTotal}
+          <p className="promise">
+            <strong>Never lose the conversation.</strong>
           </p>
-          <p>Top sources: {(s.topSources as any[]).map((g) => `${g.source ?? "—"} ${g._count}`).join(" · ") || "—"}</p>
-        </Section>
+        </section>
 
-        {isOwner && d.team && (
-          <Section title="Team">
-            <table className="grid">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Assigned</th>
-                  <th>Open FU</th>
-                  <th>Overdue</th>
-                  <th>Conversions</th>
-                  <th>Replies 7d</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(d.team as any[]).map((t: any) => (
-                  <tr key={t.user.id}>
-                    <td>
-                      <Avatar name={t.user.name} size={22} />
-                      {t.user.name} ({t.role})
-                    </td>
-                    <td>{t.assigned}</td>
-                    <td>{t.openFollowups}</td>
-                    <td>{t.overdue}</td>
-                    <td>{t.conversions}</td>
-                    <td>{t.replies7d}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Section>
-        )}
-      </div>
-    </Shell>
+        <section className="strip">
+          <h2>The journey</h2>
+          <ol className="journey">
+            {JOURNEY.map((s, i) => (
+              <li key={s}>
+                <span className="step-n">{i + 1}</span> {s}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="strip">
+          <h2>Always know</h2>
+          <ul className="questions">
+            <li>Who is this person?</li>
+            <li>Where did they come from?</li>
+            <li>What is happening with them?</li>
+            <li>What should happen next?</li>
+            <li>Did the relationship produce an outcome?</li>
+          </ul>
+        </section>
+
+        <section className="strip">
+          <h2>Everything in one place</h2>
+          <div className="cards">
+            {AREAS.map((a) => (
+              <div className="mini-card" key={a.name}>
+                <h3>{a.name}</h3>
+                <p>{a.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="strip">
+          <h2>Built for relationships, not databases</h2>
+          <div className="cards">
+            {AUDIENCES.map((a) => (
+              <div className="mini-card" key={a.name}>
+                <h3>{a.name}</h3>
+                <p>{a.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="hero foot">
+          <h2>Open it in the morning. Know exactly what needs doing.</h2>
+          <p>
+            <a href="/login" className="cta big">
+              Get started
+            </a>
+          </p>
+        </section>
+      </main>
+
+      <footer>
+        <small>Phenomenal Grow — Turn Conversations Into Growth.</small>
+      </footer>
+    </div>
   );
 }
