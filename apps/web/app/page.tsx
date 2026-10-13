@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/orgs";
 import { LogoMark } from "./logo";
+import { ThemeToggle } from "./theme-toggle";
 
 const JOURNEY = ["Capture", "Understand", "Act", "Follow Up", "Convert", "Retain", "Re-engage"];
 
@@ -36,7 +37,8 @@ export default async function Landing() {
           <a href="/login">Sign in</a>{" "}
           <a href="/login" className="cta">
             Get started
-          </a>
+          </a>{" "}
+          <ThemeToggle />
         </span>
       </header>
 

@@ -178,6 +178,41 @@ form.inline { display: inline; }
 .skeleton { border-radius: 8px; background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* ---- dark theme ---- */
+html.dark {
+  --pg-action: #4ade80;
+  --pg-action-dark: #22c55e;
+  --pg-due-bg: #451a03;
+  --pg-overdue-bg: #450a0a;
+  --pg-conversion-bg: #2e1065;
+  --pg-ink: #e2e8f0;
+  --pg-muted: #94a3b8;
+  --pg-line: #1e293b;
+  --pg-bg: #0b1220;
+  --pg-card: #101a30;
+}
+html.dark body { background: var(--pg-bg); color: var(--pg-ink); }
+html.dark .card { box-shadow: none; }
+html.dark input, html.dark select, html.dark textarea { background: #0b1220; border-color: #334155; color: var(--pg-ink); }
+html.dark a { color: #4ade80; }
+html.dark .badge-muted { background: #334155; color: #e2e8f0; }
+html.dark .badge-due { background: var(--pg-due-bg); color: #fcd34d; }
+html.dark .badge-overdue { background: var(--pg-overdue-bg); color: #fca5a5; }
+html.dark .badge-conv { background: var(--pg-conversion-bg); color: #c4b5fd; }
+html.dark ul.clean > li { background: var(--pg-card); }
+html.dark ul.clean > li.hot { background: #2a1113; }
+html.dark ul.clean > li.warm { background: #241a06; }
+html.dark .thread > li { background: #1e293b; }
+html.dark .thread > li.out { background: #14532d; }
+html.dark .skeleton { background: linear-gradient(90deg, #1e293b 25%, #0f172a 50%, #1e293b 75%); background-size: 200% 100%; }
+html.dark .bar-track { background: #1e293b; }
+html.dark .journey li, html.dark .questions li, html.dark .mini-card { background: var(--pg-card); }
+html.dark .mini-card p, html.dark .lede { color: #cbd5e1; }
+html.dark .ghost { border-color: #334155; color: var(--pg-ink) !important; }
+html.dark .landing-brand strong { color: var(--pg-ink); }
+html.dark button.secondary { background: #1e293b; color: #e2e8f0; }
+html.dark button.secondary:hover { background: #334155; }
+
 /* ---- public landing ---- */
 .landing { max-width: 960px; margin: 0 auto; padding: 0 20px 60px; }
 .landing-nav {
