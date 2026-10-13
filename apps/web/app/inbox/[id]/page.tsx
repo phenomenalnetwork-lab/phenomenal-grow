@@ -3,6 +3,7 @@ import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/
 import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
+import { StatusBadge } from "../../badges";
 import { replyToConversation, updateConversation, moveStageFromInbox } from "../actions";
 
 export default async function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,8 +43,8 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
           <a href="/inbox">← Inbox</a> · <a href={`/contacts/${c.contact?.id}`}>Open contact</a>
         </p>
         <h2>
-          {c.contact?.name} <span className="badge">{c.status}</span>
-          {c.needsReply && <span className="badge">needs reply</span>}
+          {c.contact?.name} <StatusBadge status={c.status} />
+          {c.needsReply && <span className="badge badge-overdue">needs reply</span>}
         </h2>
         <p>
           <small>
@@ -51,9 +52,9 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
             {(c.contact?.tags ?? []).map((t: any) => t.tag.name).join(", ") || "—"}
           </small>
         </p>
-        <ul>
+        <ul className="thread">
           {(c.messages ?? []).map((m: any) => (
-            <li key={m.id}>
+            <li key={m.id} className={m.direction === "OUT" ? "out" : undefined}>
               <strong>{m.direction === "IN" ? c.contact?.name : "Us"}:</strong> {m.body}{" "}
               <small>({String(m.sentAt).slice(0, 16)})</small>
             </li>

@@ -41,17 +41,18 @@ export default async function InboxPage({
         </p>
         {!res.ok && <p style={{ color: "var(--pg-overdue)" }}>Load failed: {(res.data as any)?.message}</p>}
         <p>{list.total} conversation(s)</p>
-        <ul>
+        <ul className="clean">
           {list.items.map((c: any) => (
-            <li key={c.id}>
+            <li key={c.id} className={c.needsReply ? "hot" : undefined}>
               <a href={`/inbox/${c.id}`}>
-                {c.contact?.name ?? "Unknown"} ({c.contact?.phoneE164}){c.needsReply ? " — needs reply" : ""}
+                <strong>{c.contact?.name ?? "Unknown"}</strong> ({c.contact?.phoneE164})
               </a>{" "}
               <small>
                 · {c.number?.label} · {c.status}
               </small>
             </li>
           ))}
+          {list.items.length === 0 && <li className="empty">No conversations here.</li>}
         </ul>
       </div>
     </Shell>

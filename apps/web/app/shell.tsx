@@ -32,17 +32,22 @@ export async function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <aside className="sidebar">
         <h1>Phenomenal Grow</h1>
-        {nav.map((item) => (
-          <a key={item} href={hrefs[item] ?? "/"}>
-            {item}
+        <p className="tagline">Turn conversations into growth</p>
+        <nav>
+          {nav.map((item) => (
+            <a key={item} href={hrefs[item] ?? "/"}>
+              {item}
+            </a>
+          ))}
+          {extraLinks.map((l) => (
+            <a key={l.href} href={l.href}>
+              {l.label}
+            </a>
+          ))}
+          <a href="/notifications">
+            Notifications{unread > 0 ? <span className="count">{unread}</span> : ""}
           </a>
-        ))}
-        {extraLinks.map((l) => (
-          <a key={l.href} href={l.href}>
-            {l.label}
-          </a>
-        ))}
-        <a href="/notifications">Notifications{unread > 0 ? ` (${unread})` : ""}</a>
+        </nav>
       </aside>
       <main className="main">{children}</main>
     </div>

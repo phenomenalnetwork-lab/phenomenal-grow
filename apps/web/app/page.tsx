@@ -2,10 +2,11 @@ import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "./shell";
+import { StatusBadge } from "./badges";
 
-function Section({ title, link, children }: { title: string; link?: string; children: React.ReactNode }) {
+function Section({ title, link, tone, children }: { title: string; link?: string; tone?: "hot" | "warm" | "calm"; children: React.ReactNode }) {
   return (
-    <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 16, paddingTop: 12 }}>
+    <div className={`section priority priority-${tone ?? "calm"}`}>
       <h3>
         {title} {link && <a href={link}>→</a>}
       </h3>
@@ -34,62 +35,62 @@ export default async function Home() {
         <span className="badge">{isOwner ? `${m.org.name} · Owner` : `${m.org.name} · My Day`}</span>
         <h2>Who needs me right now?</h2>
 
-        <Section title={`Needs Reply (${d.needsReply.length})`} link="/inbox?view=needs-reply">
-          <ul>
+        <Section title={`Needs Reply (${d.needsReply.length})`} link="/inbox?view=needs-reply" tone="hot">
+          <ul className="clean">
             {d.needsReply.map((c: any) => (
-              <li key={c.id}>
+              <li key={c.id} className="hot">
                 <a href={`/inbox/${c.id}`}>
-                  {c.contact?.name} ({c.contact?.phoneE164})
+                  <strong>{c.contact?.name}</strong> ({c.contact?.phoneE164})
                 </a>{" "}
                 <small>· {c.number?.label}</small>
               </li>
             ))}
-            {d.needsReply.length === 0 && <li>All caught up.</li>}
+            {d.needsReply.length === 0 && <li className="empty">All caught up.</li>}
           </ul>
         </Section>
 
-        <Section title={`Overdue (${d.overdue.length})`} link="/followups?view=overdue">
-          <ul>
+        <Section title={`Overdue (${d.overdue.length})`} link="/followups?view=overdue" tone="hot">
+          <ul className="clean">
             {d.overdue.map((f: any) => (
-              <li key={f.id}>
+              <li key={f.id} className="hot">
                 <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}{" "}
                 <small>(due {String(f.dueAt).slice(0, 16)})</small>
               </li>
             ))}
-            {d.overdue.length === 0 && <li>Nothing overdue.</li>}
+            {d.overdue.length === 0 && <li className="empty">Nothing overdue.</li>}
           </ul>
         </Section>
 
-        <Section title={`Due Today (${d.dueToday.length})`} link="/followups?view=today">
-          <ul>
+        <Section title={`Due Today (${d.dueToday.length})`} link="/followups?view=today" tone="warm">
+          <ul className="clean">
             {d.dueToday.map((f: any) => (
-              <li key={f.id}>
+              <li key={f.id} className="warm">
                 <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}
               </li>
             ))}
-            {d.dueToday.length === 0 && <li>Nothing due today.</li>}
+            {d.dueToday.length === 0 && <li className="empty">Nothing due today.</li>}
           </ul>
         </Section>
 
-        <Section title={`New Contacts (${d.newContacts.length})`} link="/contacts">
-          <ul>
+        <Section title={`New Contacts (${d.newContacts.length})`} link="/contacts" tone="calm">
+          <ul className="clean">
             {d.newContacts.map((c: any) => (
               <li key={c.id}>
                 <a href={`/contacts/${c.id}`}>{c.name}</a> <small>· next: {c.suggested}</small>
               </li>
             ))}
-            {d.newContacts.length === 0 && <li>No new contacts this week.</li>}
+            {d.newContacts.length === 0 && <li className="empty">No new contacts this week.</li>}
           </ul>
         </Section>
 
-        <Section title={`Active Opportunities (${d.opportunities.length})`} link="/pipelines">
-          <ul>
+        <Section title={`Active Opportunities (${d.opportunities.length})`} link="/pipelines" tone="calm">
+          <ul className="clean">
             {d.opportunities.map((o: any) => (
               <li key={o.id}>
                 <a href={`/contacts/${o.contactId}`}>{o.contact?.name}</a> <small>· {o.pipeline?.name} / {o.stage?.name} · next: {o.suggested}</small>
               </li>
             ))}
-            {d.opportunities.length === 0 && <li>No active opportunities.</li>}
+            {d.opportunities.length === 0 && <li className="empty">No active opportunities.</li>}
           </ul>
         </Section>
 

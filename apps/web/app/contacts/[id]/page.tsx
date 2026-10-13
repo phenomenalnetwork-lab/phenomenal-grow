@@ -3,6 +3,7 @@ import { getSession, myMemberships, getActiveOrgId, requireMembership } from "@/
 import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
+import { StatusBadge } from "../../badges";
 import { updateContact, addNote, addTag, removeTag, mergeContacts, enrollPipeline, movePipeline, outcomePipeline, unenrollPipeline, enrollSequence } from "../actions";
 import { createFollowup, toggleFollowup } from "../../followups/actions";
 import { createAppointment, updateAppointment } from "../../appointments/actions";
@@ -55,15 +56,15 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
           <a href="/contacts">← Contacts</a>
         </p>
         <h2>
-          {c.name} <span className="badge">{c.status}</span>
+          {c.name} <StatusBadge status={c.status} />
         </h2>
         <p>
           {c.phoneE164} · {c.email ?? "no email"} · Source: {c.source ?? "—"} · Referred by: {c.referredBy ?? "—"}
         </p>
         {c.status === "DNC" && (
-          <p style={{ color: "var(--pg-overdue)" }}>
-            <strong>Do Not Contact — all automated follow-up must stop.</strong>
-          </p>
+          <div className="alert alert-dnc">
+            Do Not Contact — all automated follow-up must stop.
+          </div>
         )}
 
         <h3>Edit</h3>
