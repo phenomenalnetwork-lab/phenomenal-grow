@@ -17,8 +17,8 @@ export default async function PipelinesPage() {
   const pipes = res.ok ? ((res.data as any[]) ?? []) : [];
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="pipelines">
+      <div className="card card-accent">
         <h2>Pipelines</h2>
         {!res.ok && <p style={{ color: "var(--pg-overdue)" }}>Load failed</p>}
         {isOwner && (

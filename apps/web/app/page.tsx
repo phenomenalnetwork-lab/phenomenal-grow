@@ -3,6 +3,7 @@ import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "./shell";
 import { StatusBadge } from "./badges";
+import { Avatar } from "./avatar";
 
 function Section({ title, link, tone, children }: { title: string; link?: string; tone?: "hot" | "warm" | "calm"; children: React.ReactNode }) {
   return (
@@ -30,8 +31,8 @@ export default async function Home() {
   const s = d.snapshot;
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="home">
+      <div className="card card-accent">
         <span className="badge">{isOwner ? `${m.org.name} · Owner` : `${m.org.name} · My Day`}</span>
         <h2>Who needs me right now?</h2>
 
@@ -39,6 +40,7 @@ export default async function Home() {
           <ul className="clean">
             {d.needsReply.map((c: any) => (
               <li key={c.id} className="hot">
+                <Avatar name={c.contact?.name ?? "?"} />
                 <a href={`/inbox/${c.id}`}>
                   <strong>{c.contact?.name}</strong> ({c.contact?.phoneE164})
                 </a>{" "}
@@ -53,6 +55,7 @@ export default async function Home() {
           <ul className="clean">
             {d.overdue.map((f: any) => (
               <li key={f.id} className="hot">
+                <Avatar name={f.contact?.name ?? "?"} size={24} />
                 <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}{" "}
                 <small>(due {String(f.dueAt).slice(0, 16)})</small>
               </li>
@@ -65,6 +68,7 @@ export default async function Home() {
           <ul className="clean">
             {d.dueToday.map((f: any) => (
               <li key={f.id} className="warm">
+                <Avatar name={f.contact?.name ?? "?"} size={24} />
                 <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}
               </li>
             ))}
@@ -76,6 +80,7 @@ export default async function Home() {
           <ul className="clean">
             {d.newContacts.map((c: any) => (
               <li key={c.id}>
+                <Avatar name={c.name} size={24} />
                 <a href={`/contacts/${c.id}`}>{c.name}</a> <small>· next: {c.suggested}</small>
               </li>
             ))}
@@ -87,6 +92,7 @@ export default async function Home() {
           <ul className="clean">
             {d.opportunities.map((o: any) => (
               <li key={o.id}>
+                <Avatar name={o.contact?.name ?? "?"} size={24} />
                 <a href={`/contacts/${o.contactId}`}>{o.contact?.name}</a> <small>· {o.pipeline?.name} / {o.stage?.name} · next: {o.suggested}</small>
               </li>
             ))}
@@ -133,7 +139,7 @@ export default async function Home() {
 
         {isOwner && d.team && (
           <Section title="Team">
-            <table>
+            <table className="grid">
               <thead>
                 <tr>
                   <th>Agent</th>
@@ -148,6 +154,7 @@ export default async function Home() {
                 {(d.team as any[]).map((t: any) => (
                   <tr key={t.user.id}>
                     <td>
+                      <Avatar name={t.user.name} size={22} />
                       {t.user.name} ({t.role})
                     </td>
                     <td>{t.assigned}</td>

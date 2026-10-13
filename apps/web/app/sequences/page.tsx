@@ -25,8 +25,8 @@ export default async function SequencesPage() {
   );
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="followups">
+      <div className="card card-accent">
         <h2>Follow-up sequences</h2>
         <p>
           Steps support {"{{name}}"} — replaced with the contact's first name. Replies pause a sequence; conversion,

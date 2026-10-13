@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "../shell";
+import { Avatar } from "../avatar";
 
 export default async function ReportsPage({
   searchParams,
@@ -16,8 +17,8 @@ export default async function ReportsPage({
   if (!m) redirect("/");
   if (m.role !== "OWNER") {
     return (
-      <Shell>
-        <div className="card">
+      <Shell accent="reports">
+        <div className="card card-accent">
           <h2>Reports</h2>
           <p>Reports are available to organisation owners. Your action dashboard is on the Home page.</p>
         </div>
@@ -31,7 +32,7 @@ export default async function ReportsPage({
   const res = await apiFetch<any>(`/reports/overview?${qs.toString()}`, { orgId: m.orgId });
   if (!res.ok) {
     return (
-      <Shell>
+      <Shell accent="reports">
         <div className="card">
           <h2>Reports</h2>
           <p style={{ color: "var(--pg-overdue)" }}>Load failed</p>
@@ -43,7 +44,7 @@ export default async function ReportsPage({
   const dnc = await apiFetch<any>("/reports/dnc-audit", { orgId: m.orgId });
   const audit = dnc.ok ? dnc.data : null;
   return (
-    <Shell>
+    <Shell accent="reports">
       <div className="card">
         <h2>Reports</h2>
         <form method="get">
@@ -74,33 +75,44 @@ export default async function ReportsPage({
         </p>
 
         <h3>Conversions ({o.conversions.rate}% rate)</h3>        <p>{o.conversions.byOutcome.map((g: any) => `${g.outcome}: ${g._count}`).join(" · ")}</p>
+        {(() => {
+          const max = Math.max(1, ...o.conversions.byOutcome.map((g: any) => g._count));
+          return o.conversions.byOutcome.map((g: any) => (
+            <div className="bar-row" key={g.outcome}>
+              <span className="bar-label">{g.outcome}</span>
+              <span className="bar-track">
+                <span className="bar-fill" style={{ width: `${Math.round((g._count / max) * 100)}%` }} />
+              </span>
+              <span className="bar-value">{g._count}</span>
+            </div>
+          ));
+        })()}
         <p>
           <small>Not-converted reasons: {o.conversions.reasons.map((g: any) => `${g.outcomeReason ?? "—"}: ${g._count}`).join(" · ") || "—"}</small>
         </p>
 
         <h3>Source funnel</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Source</th>
-              <th>Contacts</th>
-              <th>Conversations</th>
-              <th>Converted</th>
-            </tr>
-          </thead>
-          <tbody>
-            {o.funnel.map((f: any) => (
-              <tr key={f.source}>
-                <td>{f.source}</td>
-                <td>{f.contacts}</td>
-                <td>{f.conversations}</td>
-                <td>{f.converted}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {o.funnel.map((f: any) => {
+          const max = Math.max(1, ...o.funnel.map((x: any) => x.contacts));
+          return (
+            <div key={f.source}>
+              <div className="bar-row">
+                <span className="bar-label">{f.source}</span>
+                <span className="bar-track">
+                  <span className="bar-fill" style={{ width: `${Math.round((f.contacts / max) * 100)}%` }} />
+                </span>
+                <span className="bar-value">{f.contacts}</span>
+              </div>
+              <p>
+                <small>
+                  {f.conversations} conversations → {f.converted} converted
+                </small>
+              </p>
+            </div>
+          );
+        })}
 
-        <h3>Agents</h3>        <table>
+        <h3>Agents</h3>        <table className="grid">
           <thead>
             <tr>
               <th>Agent</th>
@@ -114,7 +126,10 @@ export default async function ReportsPage({
           <tbody>
             {o.agents.map((a: any) => (
               <tr key={a.user.id}>
-                <td>{a.user.name}</td>
+                <td>
+                  <Avatar name={a.user.name} size={22} />
+                  {a.user.name}
+                </td>
                 <td>{a.handled}</td>
                 <td>{a.followupsCompleted}</td>
                 <td>{a.outstanding}</td>

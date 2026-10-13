@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
 import { StatusBadge } from "../../badges";
+import { Avatar } from "../../avatar";
 import { replyToConversation, updateConversation, moveStageFromInbox } from "../actions";
 
 export default async function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,12 +38,13 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="inbox">
+      <div className="card card-accent">
         <p>
           <a href="/inbox">← Inbox</a> · <a href={`/contacts/${c.contact?.id}`}>Open contact</a>
         </p>
         <h2>
+          <Avatar name={c.contact?.name ?? "?"} size={32} />
           {c.contact?.name} <StatusBadge status={c.status} />
           {c.needsReply && <span className="badge badge-overdue">needs reply</span>}
         </h2>

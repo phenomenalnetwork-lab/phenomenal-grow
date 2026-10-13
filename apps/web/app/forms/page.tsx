@@ -21,8 +21,8 @@ export default async function FormsPage() {
   const host = (await headers()).get("host") ?? "localhost:3000";
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="forms">
+      <div className="card card-accent">
         <h2>Capture forms</h2>
         <p>Each form has a public link (QR-printable). Submissions create or match contacts and start their journey.</p>
         {forms.map((f: any) => (

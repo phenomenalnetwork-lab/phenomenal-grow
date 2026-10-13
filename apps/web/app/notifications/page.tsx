@@ -20,8 +20,8 @@ export default async function NotificationsPage() {
   const prefs = new Map((prefsRes.ok ? prefsRes.data ?? [] : []).map((p: any) => [p.kind, p.enabled]));
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="notifications">
+      <div className="card card-accent">
         <h2>Notifications ({list.unread} unread)</h2>
         <form action={markAllRead}>
           <button type="submit">Mark all read</button>

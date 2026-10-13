@@ -4,6 +4,8 @@ import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../shell";
+import { Avatar } from "../avatar";
+import { StatusBadge } from "../badges";
 import { createContact } from "./actions";
 
 async function saveView(orgId: string, form: FormData) {
@@ -41,8 +43,8 @@ export default async function ContactsPage({
   const currentFilters = JSON.stringify({ q: sp.q ?? "", status: sp.status ?? "", tag: sp.tag ?? "" });
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="contacts">
+      <div className="card card-accent">
         <h2>Contacts ({list.total})</h2>
         {views.length > 0 && (
           <p>
@@ -80,13 +82,14 @@ export default async function ContactsPage({
           <button type="submit">Save view</button>
         </form>
         {!res.ok && <p style={{ color: "var(--pg-overdue)" }}>List failed: {(res.data as any)?.message}</p>}
-        <ul>
+        <ul className="clean">
           {list.items.map((c: any) => (
             <li key={c.id}>
+              <Avatar name={c.name} />
               <a href={`/contacts/${c.id}`}>
                 {c.name} ({c.phoneE164})
               </a>{" "}
-              · {c.status} · {(c.tags ?? []).map((t: any) => t.tag.name).join(", ")}
+              <StatusBadge status={c.status} /> <small>· {(c.tags ?? []).map((t: any) => t.tag.name).join(", ")}</small>
             </li>
           ))}
         </ul>

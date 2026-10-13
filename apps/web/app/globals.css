@@ -157,7 +157,24 @@ form.inline { display: inline; }
 .thread > li.out { background: #dcfce7; align-self: flex-end; }
 .thread small { display: block; color: var(--pg-muted); font-size: 11px; margin-top: 2px; }
 
-/* ---- skeleton / error ---- */
+/* ---- per-area accents ---- */
+.area-home, .area-inbox { --pg-area: var(--pg-action); }
+.area-contacts { --pg-area: #0d9488; }
+.area-pipelines { --pg-area: var(--pg-conversion); }
+.area-followups { --pg-area: var(--pg-due); }
+.area-appointments { --pg-area: #2563eb; }
+.area-reports { --pg-area: #475569; }
+.area-settings, .area-forms { --pg-area: #64748b; }
+.area-notifications { --pg-area: #db2777; }
+.area-onboarding { --pg-area: var(--pg-action); }
+.card-accent { border-top: 4px solid var(--pg-area, var(--pg-action)); }
+
+/* ---- charts (CSS-only bars) ---- */
+.bar-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
+.bar-label { width: 140px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { flex: 1; background: #e2e8f0; border-radius: 999px; height: 10px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--pg-area, var(--pg-action)); border-radius: 999px; }
+.bar-value { width: 48px; text-align: right; color: var(--pg-muted); flex-shrink: 0; }
 .skeleton { border-radius: 8px; background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 

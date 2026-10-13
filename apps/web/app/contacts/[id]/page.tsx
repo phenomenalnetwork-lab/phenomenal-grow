@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Shell } from "../../shell";
 import { StatusBadge } from "../../badges";
+import { Avatar } from "../../avatar";
 import { updateContact, addNote, addTag, removeTag, mergeContacts, enrollPipeline, movePipeline, outcomePipeline, unenrollPipeline, enrollSequence } from "../actions";
 import { createFollowup, toggleFollowup } from "../../followups/actions";
 import { createAppointment, updateAppointment } from "../../appointments/actions";
@@ -50,12 +51,13 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="contacts">
+      <div className="card card-accent">
         <p>
           <a href="/contacts">← Contacts</a>
         </p>
         <h2>
+          <Avatar name={c.name} size={32} />
           {c.name} <StatusBadge status={c.status} />
         </h2>
         <p>

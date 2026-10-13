@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "../shell";
+import { Avatar } from "../avatar";
 import { createFollowupByPhone, toggleFollowup } from "./actions";
 
 const VIEWS = [
@@ -29,8 +30,8 @@ export default async function FollowupsPage({
   const list = res.ok ? (res.data as any) : { items: [], total: 0 };
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="followups">
+      <div className="card card-accent">
         <h2>Follow-ups</h2>
         <p>
           <a href="/sequences">Sequences →</a>
@@ -43,13 +44,14 @@ export default async function FollowupsPage({
           ))}
         </p>
         {!res.ok && <p style={{ color: "var(--pg-overdue)" }}>Load failed</p>}
-        <ul>
+        <ul className="clean">
           {list.items.map((f: any) => (
             <li key={f.id}>
+              <Avatar name={f.contact?.name ?? "?"} size={24} />
               <a href={`/contacts/${f.contactId}`}>{f.contact?.name}</a> — {f.title}{" "}
               <small>(due {String(f.dueAt).slice(0, 16)})</small>{" "}
               <form action={toggleFollowup.bind(null, f.id, true, `/followups?view=${view}`)} style={{ display: "inline" }}>
-                <button type="submit">Done</button>
+                <button type="submit" className="inline">Done</button>
               </form>
             </li>
           ))}

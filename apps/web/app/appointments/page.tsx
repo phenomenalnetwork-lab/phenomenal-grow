@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "../shell";
+import { Avatar } from "../avatar";
+import { StatusBadge } from "../badges";
 import { createAppointmentByPhone, updateAppointment } from "./actions";
 
 const VIEWS = [
@@ -29,8 +31,8 @@ export default async function AppointmentsPage({
   const items = res.ok ? ((res.data as any[]) ?? []) : [];
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="appointments">
+      <div className="card card-accent">
         <h2>Appointments</h2>
         <p>
           {VIEWS.map(([v, label]) => (
@@ -40,11 +42,12 @@ export default async function AppointmentsPage({
           ))}
         </p>
         {!res.ok && <p style={{ color: "var(--pg-overdue)" }}>Load failed</p>}
-        <ul>
+        <ul className="clean">
           {items.map((a: any) => (
             <li key={a.id}>
+              <Avatar name={a.contact?.name ?? "?"} size={24} />
               <a href={`/contacts/${a.contactId}`}>{a.contact?.name}</a> — {String(a.date).slice(0, 10)}{a.time ? ` ${a.time}` : ""}{" "}
-              {a.type ? `· ${a.type} ` : ""}· {a.status}{" "}
+              {a.type ? `· ${a.type} ` : ""}<StatusBadge status={a.status} />{" "}
               {a.status === "SCHEDULED" && (
                 <>
                   <form action={updateAppointment.bind(null, a.id, "COMPLETED", `/appointments?view=${view}`)} style={{ display: "inline", marginLeft: 8 }}>

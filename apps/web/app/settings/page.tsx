@@ -43,8 +43,8 @@ export default async function SettingsPage() {
   });
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="settings">
+      <div className="card card-accent">
         <h2>Settings</h2>
         <h3>Organisation</h3>
         <OrgSwitcher orgs={memberships.map((m) => ({ id: m.orgId, name: m.org.name }))} activeId={active?.orgId ?? null} />

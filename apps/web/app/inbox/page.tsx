@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "../shell";
+import { Avatar } from "../avatar";
 
 const VIEWS = [
   ["needs-reply", "Needs Reply"],
@@ -29,8 +30,8 @@ export default async function InboxPage({
   const list = res.ok ? (res.data as any) : { items: [], total: 0 };
 
   return (
-    <Shell>
-      <div className="card">
+    <Shell accent="inbox">
+      <div className="card card-accent">
         <h2>Inbox</h2>
         <p>
           {VIEWS.map(([v, label]) => (
@@ -44,6 +45,7 @@ export default async function InboxPage({
         <ul className="clean">
           {list.items.map((c: any) => (
             <li key={c.id} className={c.needsReply ? "hot" : undefined}>
+              <Avatar name={c.contact?.name ?? "?"} />
               <a href={`/inbox/${c.id}`}>
                 <strong>{c.contact?.name ?? "Unknown"}</strong> ({c.contact?.phoneE164})
               </a>{" "}

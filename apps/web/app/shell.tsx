@@ -3,6 +3,7 @@ import { nav } from "@pgrow/config";
 import { getSession } from "@/lib/orgs";
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_ORG_COOKIE } from "@/lib/orgs";
+import { Logo } from "./logo";
 
 const hrefs: Record<string, string> = {
   Home: "/",
@@ -17,7 +18,7 @@ const hrefs: Record<string, string> = {
 
 const extraLinks = [{ label: "Capture Forms", href: "/forms" }];
 
-export async function Shell({ children }: { children: React.ReactNode }) {
+export async function Shell({ children, accent = "home" }: { children: React.ReactNode; accent?: string }) {
   let unread = 0;
   try {
     const session = await getSession();
@@ -29,9 +30,11 @@ export async function Shell({ children }: { children: React.ReactNode }) {
     unread = 0;
   }
   return (
-    <div className="shell">
+    <div className={`shell area-${accent}`}>
       <aside className="sidebar">
-        <h1>Phenomenal Grow</h1>
+        <h1>
+          <Logo />
+        </h1>
         <p className="tagline">Turn conversations into growth</p>
         <nav>
           {nav.map((item) => (
