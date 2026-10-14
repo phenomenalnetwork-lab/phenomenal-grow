@@ -23,7 +23,7 @@ async function bootstrap() {
   // The Meta webhook stays under the global cap (Meta retries on 429).
   app.use(rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: true, legacyHeaders: false }));
   app.use("/public/forms", rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false }));
-  const port = Number(process.env.API_PORT ?? 4000);
+  const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
   await app.listen(port);
   // eslint-disable-next-line no-console
   console.log(`pgrow-api listening on :${port}`);
