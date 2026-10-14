@@ -24,8 +24,18 @@ export default async function Home() {
   if (!m) redirect("/onboarding");
   const isOwner = m.role === "OWNER";
 
-  const res = await apiFetch<any>("/home", { orgId: m.orgId });
-  if (!res.ok) redirect("/settings");
+  let res;
+  try {
+    res = await apiFetch<any>("/home", { orgId: m.orgId });
+  } catch {
+    // API unreachable (e.g. API_INTERNAL_URL misconfigured): say so plainly
+    // instead of bouncing to an unrelated page.
+    throw new Error("Cannot reach the CRM API. Check that the API is running and API_INTERNAL_URL is set correctly.");
+  }
+  if (res.status === 401 || res.status === 403) redirect("/login");
+  if (!res.ok) {
+    throw new Error(`The CRM API answered with status ${res.status}. Check the API logs and database configuration.`);
+  }
   const d = res.data;
   const s = d.snapshot;
 
