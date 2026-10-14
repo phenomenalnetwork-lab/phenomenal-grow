@@ -22,7 +22,7 @@ export async function apiFetch<T = any>(
     cache: "no-store",
   });
   const text = await res.text();
-  let data: any = null;
+  let data: any;
   try {
     data = text ? JSON.parse(text) : null;
   } catch {

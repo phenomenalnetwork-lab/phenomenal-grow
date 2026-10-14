@@ -43,7 +43,7 @@ export class FollowupsService {
     if (!title) throw new BadRequestException("Title is required");
     const dueAt = dto?.dueAt ? new Date(dto.dueAt) : null;
     if (!dueAt || Number.isNaN(dueAt.getTime())) throw new BadRequestException("Valid dueAt is required");
-    let assignee: string | null = dto?.assignedAgentId ?? (ctx.role === "AGENT" ? ctx.userId : contact!.assignedAgentId);
+    const assignee: string | null = dto?.assignedAgentId ?? (ctx.role === "AGENT" ? ctx.userId : contact!.assignedAgentId);
     if (assignee) {
       const m = await this.prisma.membership.findUnique({
         where: { orgId_userId: { orgId: ctx.orgId, userId: assignee } },

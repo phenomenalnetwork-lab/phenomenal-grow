@@ -97,7 +97,9 @@ function stubService(
   const asService = prisma as unknown as PrismaService;
   const provider = {
     name: "stub",
-    sendText: async () => ({ providerMessageId: "stub-out" }),
+    sendText: async () => ({ providerMessageId: "stub-out", via: "text" as const }),
+    sendTemplate: async () => ({ providerMessageId: "stub-tpl", via: "template" as const }),
+    sendOutbound: async () => ({ providerMessageId: "stub-out", via: "text" as const }),
     fetchMedia,
   };
   return new WhatsappService(
@@ -249,5 +251,76 @@ describe("inbound media reliability (must never sink the message)", () => {
       if (saved === undefined) delete process.env.ENCRYPTION_KEY;
       else process.env.ENCRYPTION_KEY = saved;
     }
+  });
+});
+
+describe("delivery status receipts (accelerated)", () => {
+  let prisma: PrismaClient;
+  let orgId: string;
+  let convId: string;
+  let agentId: string;
+  let wa: WhatsappService;
+
+  beforeAll(() => {
+    prisma = testPrisma();
+    const asService = prisma as unknown as PrismaService;
+    wa = new WhatsappService(asService, new MetaProvider() as never, new NotificationsService(asService));
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(prisma);
+    const org = await prisma.organisation.create({ data: { name: "wa-status", slug: `was-${Date.now()}` } });
+    orgId = org.id;
+    const agent = await prisma.user.create({ data: { name: "AgS", email: `ags-${Date.now()}@t.dev` } });
+    agentId = agent.id;
+    await prisma.membership.create({ data: { orgId, userId: agent.id, role: "AGENT", active: true } });
+    const contact = await prisma.contact.create({
+      data: { orgId, name: "Sam", phoneE164: "+15550001111", assignedAgentId: agent.id },
+    });
+    const number = await prisma.whatsappNumber.create({
+      data: { orgId, label: "N", providerNumberId: "15550009999", accessToken: "test" },
+    });
+    const conv = await prisma.conversation.create({ data: { orgId, contactId: contact.id, whatsappNumberId: number.id } });
+    convId = conv.id;
+    await prisma.message.create({
+      data: { orgId, conversationId: conv.id, providerMessageId: "wamid.s1", direction: "OUT", type: "text", body: "Hi" },
+    });
+  });
+
+  it("marks delivered and read", async () => {
+    await wa.applyStatuses([{ providerMessageId: "wamid.s1", status: "delivered", timestamp: new Date() }]);
+    let m = await prisma.message.findUniqueOrThrow({ where: { providerMessageId: "wamid.s1" } });
+    expect(m.status).toBe("DELIVERED");
+    await wa.applyStatuses([{ providerMessageId: "wamid.s1", status: "read", timestamp: new Date() }]);
+    m = await prisma.message.findUniqueOrThrow({ where: { providerMessageId: "wamid.s1" } });
+    expect(m.status).toBe("READ");
+  });
+
+  it("marks failed with reason, timeline event and assignee notice", async () => {
+    await wa.applyStatuses([
+      { providerMessageId: "wamid.s1", status: "failed", timestamp: new Date(), errorCode: "131047", errorDetail: "Re-engagement" },
+    ]);
+    const m = await prisma.message.findUniqueOrThrow({ where: { providerMessageId: "wamid.s1" } });
+    expect(m.status).toBe("FAILED");
+    expect(m.failureReason).toContain("131047");
+    const failed = await prisma.activity.findMany({ where: { orgId, type: "message.failed" } });
+    expect(failed.length).toBe(1);
+    const notes = await prisma.notification.findMany({ where: { orgId, userId: agentId } });
+    expect(notes.some((n) => n.kind === "sequence.attention")).toBe(true);
+  });
+
+  it("ignores receipts for unknown messages", async () => {
+    await wa.applyStatuses([{ providerMessageId: "wamid.nope", status: "delivered", timestamp: new Date() }]);
+    expect(await prisma.message.count({ where: { orgId } })).toBe(1);
+  });
+
+  it("surfaces the failed receipt in the conversation thread", async () => {
+    await wa.applyStatuses([{ providerMessageId: "wamid.s1", status: "failed", timestamp: new Date() }]);
+    const t = await prisma.conversation.findUniqueOrThrow({ where: { id: convId }, include: { messages: true } });
+    expect(t.messages[0].status).toBe("FAILED");
   });
 });

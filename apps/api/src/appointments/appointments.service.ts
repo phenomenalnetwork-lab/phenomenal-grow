@@ -62,7 +62,7 @@ export class AppointmentsService {
     assertVisible(contact, ctx);
     const date = dto?.date ? new Date(dto.date) : null;
     if (!date || Number.isNaN(date.getTime())) throw new BadRequestException("Valid date is required");
-    let assignee: string | null = dto?.assigneeId ?? (ctx.role === "AGENT" ? ctx.userId : contact!.assignedAgentId);
+    const assignee: string | null = dto?.assigneeId ?? (ctx.role === "AGENT" ? ctx.userId : contact!.assignedAgentId);
     if (assignee) {
       const m = await this.prisma.membership.findUnique({
         where: { orgId_userId: { orgId: ctx.orgId, userId: assignee } },

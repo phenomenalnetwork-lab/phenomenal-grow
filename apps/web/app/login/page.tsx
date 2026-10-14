@@ -5,8 +5,9 @@ import { signIn, signUp, useSession, signOut } from "@/lib/auth-client";
 
 function LoginInner() {
   const { data: session, isPending } = useSession();
-  const invite = useSearchParams().get("invite");
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const params = useSearchParams();
+  const invite = params.get("invite");
+  const [mode, setMode] = useState<"in" | "up">(params.get("mode") === "up" ? "up" : "in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -8,10 +8,95 @@ import { normalizePhone } from "../contacts/phone.util";
 import type { ActorCtx } from "../contacts/contacts.service";
 import { assertVisible } from "../contacts/contacts.service";
 import type { InboundMessage, WhatsappProvider } from "./provider";
-import { MetaProvider } from "./meta.provider";
+import { MetaProvider, metaApiVersion } from "./meta.provider";
+import { checkTenantScope, verifyTokenMatches } from "./webhook-verify";
 
 function waidToE164(waId: string): string {
   return normalizePhone(`+${waId.replace(/\D/g, "")}`);
+}
+
+/** Upper bound for a single inbound attachment held in memory/stored. */
+export const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
+
+/**
+ * Manual Meta settings input validation (pure, unit-tested).
+ * Meta Phone Number IDs and WABA IDs are numeric; tokens are long opaque strings.
+ */
+export function validateNumberInput(
+  dto: any,
+  opts?: { allowSameId?: string },
+): { label: string; providerNumberId: string; accessToken: string; businessAccountId: string | null } {
+  const label = String(dto?.label ?? "").trim().slice(0, 80);
+  const providerNumberId = String(dto?.providerNumberId ?? "").trim();
+  const accessToken = String(dto?.accessToken ?? "").trim();
+  const businessAccountId = String(dto?.businessAccountId ?? "").trim() || null;
+  if (!label) throw new ForbiddenException("Label is required");
+  if (!/^\d{5,20}$/.test(providerNumberId)) {
+    throw new ForbiddenException("Phone Number ID must be 5–20 digits (copy it from Meta → WhatsApp → API Setup)");
+  }
+  if (!accessToken || accessToken.length < 20) {
+    throw new ForbiddenException("A valid Meta access token is required (paste the permanent token from Meta)");
+  }
+  if (businessAccountId !== null && !/^\d{5,25}$/.test(businessAccountId)) {
+    throw new ForbiddenException("Business Account ID must be numeric when provided");
+  }
+  if (opts?.allowSameId !== undefined && providerNumberId !== opts.allowSameId) {
+    // Caller enforces re-auth on ID change; validation just documents the rule.
+  }
+  return { label, providerNumberId, accessToken, businessAccountId };
+}
+
+/**
+ * Per-org webhook credential validation (pure, unit-tested).
+ * Empty/undefined = keep the stored value (rotation only replaces on input).
+ * No plaintext fallbacks: values are always encrypted before storage.
+ */
+export function validateWebhookConfigInput(dto: any): { verifyToken: string | undefined; appSecret: string | undefined } {
+  const rawVerify = dto?.verifyToken === undefined ? undefined : String(dto.verifyToken).trim();
+  const rawSecret = dto?.appSecret === undefined ? undefined : String(dto.appSecret).trim();
+  let verifyToken: string | undefined;
+  let appSecret: string | undefined;
+  if (rawVerify !== undefined && rawVerify !== "") {
+    if (rawVerify.length < 8 || rawVerify.length > 128) {
+      throw new ForbiddenException("Verify token must be 8–128 characters (use a random string you also paste into Meta)");
+    }
+    verifyToken = rawVerify;
+  }
+  if (rawSecret !== undefined && rawSecret !== "") {
+    if (rawSecret.length < 16) {
+      throw new ForbiddenException("App secret looks too short (paste the full Meta app secret, or leave blank to keep)");
+    }
+    appSecret = rawSecret;
+  }
+  if (verifyToken === undefined && appSecret === undefined) {
+    throw new ForbiddenException("Nothing to save — provide a verify token and/or app secret");
+  }
+  return { verifyToken, appSecret };
+}
+
+const NUMBER_SELECT = {
+  id: true,
+  orgId: true,
+  label: true,
+  provider: true,
+  providerNumberId: true,
+  businessAccountId: true,
+  lastTestedAt: true,
+  lastTestOk: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+/** Delivery-status ordering: receipts only ever advance, never regress. */
+const STATUS_RANK = { SENT: 0, DELIVERED: 1, READ: 2, FAILED: 3 } as const;
+
+/** Actionable next step for known Meta send-error codes (safe to surface). */
+export function failureHint(errorCode?: string): string | null {
+  const code = String(errorCode ?? "").trim();
+  if (code === "131047") return "outside the 24h window — resend with an approved template";
+  if (code === "131026") return "message undeliverable — verify the recipient number is on WhatsApp";
+  if (code === "132000" || code === "131000") return "Meta rejected the request — check the number status in Meta → WhatsApp → API Setup";
+  return null;
 }
 
 @Injectable()
@@ -30,44 +115,211 @@ export class WhatsappService {
     return this.prisma.whatsappNumber.findMany({
       where: { orgId: ctx.orgId },
       orderBy: { createdAt: "asc" },
-      select: { id: true, label: true, provider: true, providerNumberId: true, businessAccountId: true, createdAt: true },
+      select: { id: true, label: true, provider: true, providerNumberId: true, businessAccountId: true, lastTestedAt: true, lastTestOk: true, createdAt: true },
     });
+  }
+
+  // -- per-org webhook config (owner-managed, secrets never returned) --------
+
+  /** Safe status view: flags only, never secret values. */
+  async getConfig(ctx: ActorCtx) {
+    if (ctx.role !== "OWNER") throw new ForbiddenException("Only owners can view integration settings");
+    const cfg = await this.prisma.whatsappConfig.findUnique({ where: { orgId: ctx.orgId } });
+    if (!cfg) return { configured: false as const, hasVerifyToken: false, hasAppSecret: false, updatedAt: null as Date | null };
+    return {
+      configured: true as const,
+      hasVerifyToken: true,
+      hasAppSecret: cfg.appSecret != null,
+      updatedAt: cfg.updatedAt,
+    };
+  }
+
+  async putConfig(ctx: ActorCtx, dto: any) {
+    if (ctx.role !== "OWNER") throw new ForbiddenException("Only owners can edit integration settings");
+    const parsed = validateWebhookConfigInput(dto);
+    const existing = await this.prisma.whatsappConfig.findUnique({ where: { orgId: ctx.orgId } });
+    if (!existing && parsed.verifyToken === undefined) {
+      throw new ForbiddenException("Set a verify token first — it is required for Meta webhook verification");
+    }
+    const data: { verifyToken?: string; appSecret?: string } = {};
+    // encryptToken fails closed (throws) without ENCRYPTION_KEY — never stored plaintext.
+    if (parsed.verifyToken !== undefined) data.verifyToken = encryptToken(parsed.verifyToken);
+    if (parsed.appSecret !== undefined) data.appSecret = encryptToken(parsed.appSecret);
+    const cfg = existing
+      ? await this.prisma.whatsappConfig.update({ where: { orgId: ctx.orgId }, data })
+      : await this.prisma.whatsappConfig.create({ data: { orgId: ctx.orgId, verifyToken: data.verifyToken! } });
+    return {
+      configured: true as const,
+      hasVerifyToken: true,
+      hasAppSecret: cfg.appSecret != null,
+      updatedAt: cfg.updatedAt,
+    };
+  }
+
+  /** Tenant webhook verification: false when unconfigured, mismatched, or undecryptable. */
+  async checkOrgVerifyToken(orgId: string, provided: unknown): Promise<boolean> {
+    const cfg = await this.prisma.whatsappConfig.findUnique({ where: { orgId } });
+    if (!cfg) return false;
+    let expected: string;
+    try {
+      expected = decryptToken(cfg.verifyToken);
+    } catch {
+      return false;
+    }
+    return verifyTokenMatches(provided, expected);
+  }
+
+  /**
+   * Tenant signing secret for inbound webhooks.
+   * configured=false → caller falls back to the legacy global secret.
+   * configured=true with secret=null → stored secret is undecryptable: fail closed.
+   */
+  async getOrgAppSecret(orgId: string): Promise<{ configured: boolean; secret: string | null }> {
+    const cfg = await this.prisma.whatsappConfig.findUnique({ where: { orgId } });
+    if (!cfg?.appSecret) return { configured: false, secret: null };
+    try {
+      return { configured: true, secret: decryptToken(cfg.appSecret) };
+    } catch {
+      return { configured: true, secret: null };
+    }
   }
 
   async registerNumber(ctx: ActorCtx, dto: any) {
     if (ctx.role !== "OWNER") throw new ForbiddenException("Only owners can connect numbers");
-    const label = String(dto?.label ?? "").trim();
-    const providerNumberId = String(dto?.providerNumberId ?? "").trim();
-    const accessToken = String(dto?.accessToken ?? "").trim();
-    if (!label || !providerNumberId || !accessToken) {
-      throw new ForbiddenException("label, providerNumberId and accessToken are required");
-    }
-    const stored = encryptToken(accessToken);
-    return this.prisma.whatsappNumber.upsert({
-      where: { orgId_providerNumberId: { orgId: ctx.orgId, providerNumberId } },
-      update: { label, accessToken: stored, businessAccountId: dto?.businessAccountId?.trim() || null },
-      create: { orgId: ctx.orgId, label, providerNumberId, accessToken: stored, businessAccountId: dto?.businessAccountId?.trim() || null },
+    const parsed = validateNumberInput(dto);
+    const stored = encryptToken(parsed.accessToken);
+    const row = await this.prisma.whatsappNumber.upsert({
+      where: { orgId_providerNumberId: { orgId: ctx.orgId, providerNumberId: parsed.providerNumberId } },
+      update: { label: parsed.label, accessToken: stored, businessAccountId: parsed.businessAccountId },
+      create: {
+        orgId: ctx.orgId,
+        label: parsed.label,
+        providerNumberId: parsed.providerNumberId,
+        accessToken: stored,
+        businessAccountId: parsed.businessAccountId,
+      },
+      select: NUMBER_SELECT,
     });
+    // Select above already excludes accessToken — never return credentials.
+    return row;
+  }
+
+  async updateNumber(ctx: ActorCtx, id: string, dto: any) {
+    if (ctx.role !== "OWNER") throw new ForbiddenException("Only owners can edit numbers");
+    const n = await this.prisma.whatsappNumber.findFirst({ where: { id, orgId: ctx.orgId } });
+    if (!n) throw new NotFoundException("Number not found");
+    const merged = {
+      label: dto?.label ?? n.label,
+      providerNumberId: dto?.providerNumberId ?? n.providerNumberId,
+      businessAccountId: dto?.businessAccountId ?? n.businessAccountId ?? undefined,
+      // Empty string = keep existing token (allows label-only edits from settings forms).
+      accessToken: String(dto?.accessToken ?? "").trim() ? String(dto.accessToken) : undefined,
+    };
+    const parsed = validateNumberInput(merged, { allowSameId: n.providerNumberId });
+    if (merged.accessToken === undefined && parsed.providerNumberId !== n.providerNumberId) {
+      throw new ForbiddenException("Changing the Phone Number ID requires re-entering the access token");
+    }
+    const data: { label: string; providerNumberId: string; businessAccountId: string | null; accessToken?: string } = {
+      label: parsed.label,
+      providerNumberId: parsed.providerNumberId,
+      businessAccountId: parsed.businessAccountId,
+    };
+    if (merged.accessToken !== undefined) data.accessToken = encryptToken(parsed.accessToken);
+    return this.prisma.whatsappNumber.update({
+      where: { id },
+      data,
+      select: NUMBER_SELECT,
+    });
+  }
+
+  /**
+   * Manual-settings connection check: verifies the stored token against
+   * Meta's Graph API without ever returning the token itself.
+   * The outcome is persisted (lastTestedAt/lastTestOk) so the UI can
+   * distinguish "saved" from "successfully tested".
+   */
+  async testNumber(ctx: ActorCtx, id: string) {
+    if (ctx.role !== "OWNER") throw new ForbiddenException("Only owners can test numbers");
+    const n = await this.prisma.whatsappNumber.findFirst({ where: { id, orgId: ctx.orgId } });
+    if (!n) throw new NotFoundException("Number not found");
+    const finish = async (result: { ok: boolean; reason?: string; displayPhone?: string | null; dryRun?: boolean }) => {
+      // Proof-of-test must never break the check itself.
+      try {
+        await this.prisma.whatsappNumber.update({
+          where: { id },
+          data: { lastTestedAt: new Date(), lastTestOk: result.ok },
+        });
+      } catch (e) {
+        this.log.warn(`test proof write failed (result kept): ${(e as Error).message}`);
+      }
+      return { ...result, providerNumberId: n.providerNumberId };
+    };
+    if (process.env.WHATSAPP_DRY_RUN === "1") {
+      return finish({ ok: true as const, dryRun: true as const });
+    }
+    let token: string;
+    try {
+      token = decryptToken(n.accessToken);
+    } catch {
+      return finish({ ok: false as const, reason: "Stored token cannot be decrypted — reconnect the number with a fresh token from Meta" });
+    }
+    const version = metaApiVersion();
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/${version}/${encodeURIComponent(n.providerNumberId)}?fields=id,display_phone_number`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const hint =
+          res.status === 401 || res.status === 403
+            ? "Check the access token in Meta → WhatsApp → API Setup and reconnect the number"
+            : res.status === 404
+              ? "Check the Phone Number ID in Meta → WhatsApp → API Setup and edit the number"
+              : "Verify Meta API status, then retry the test";
+        return finish({ ok: false as const, reason: `Meta rejected the credentials (${res.status}): ${text.slice(0, 160)}. ${hint}` });
+      }
+      const json = (await res.json()) as { id?: string; display_phone_number?: string };
+      return finish({ ok: true as const, dryRun: false as const, displayPhone: json.display_phone_number ?? null });
+    } catch (e) {
+      return finish({ ok: false as const, reason: `Connection failed: ${(e as Error).message.slice(0, 160)}. Check network access to graph.facebook.com, then retry` });
+    }
   }
 
   async removeNumber(ctx: ActorCtx, id: string) {
     if (ctx.role !== "OWNER") throw new ForbiddenException("Only owners can disconnect numbers");
     const n = await this.prisma.whatsappNumber.findFirst({ where: { id, orgId: ctx.orgId } });
     if (!n) throw new NotFoundException("Number not found");
-    const open = await this.prisma.conversation.count({ where: { whatsappNumberId: id, status: "OPEN" } });
-    if (open > 0) throw new ForbiddenException("Close or reassign open conversations first");
+    // Deleting a number cascades to its conversations and messages, so any
+    // history at all blocks the disconnect — contacts and history are never
+    // deleted by accident. Close-out is a deliberate data decision, not a settings click.
+    const history = await this.prisma.conversation.count({ where: { whatsappNumberId: id } });
+    if (history > 0) {
+      const open = await this.prisma.conversation.count({ where: { whatsappNumberId: id, status: "OPEN" } });
+      throw new ForbiddenException(
+        open > 0
+          ? `This number has ${history} conversation(s) (${open} open). Close or reassign the open conversations first — disconnected numbers keep their history and cannot be deleted while history exists`
+          : `This number has ${history} closed conversation(s) in history. Disconnect is blocked to preserve contacts, messages and history`,
+      );
+    }
     await this.prisma.whatsappNumber.delete({ where: { id } });
     return { ok: true };
   }
 
   // -- ingest --------------------------------------------------------------
 
-  async ingest(msg: InboundMessage) {
+  async ingest(msg: InboundMessage, opts?: { expectedOrgId?: string }) {
     const number = await this.prisma.whatsappNumber.findFirst({
       where: { providerNumberId: msg.phoneNumberId },
     });
     if (!number) {
       this.log.warn(`Ignoring message for unknown number ${msg.phoneNumberId}`);
+      return { ignored: true as const };
+    }
+    if (opts?.expectedOrgId && !checkTenantScope(number.orgId, opts.expectedOrgId)) {
+      // Same Meta number registered in two orgs: a tenant webhook must never
+      // write into the other tenant.
+      this.log.warn(`Ignoring message: number ${msg.phoneNumberId} does not belong to this webhook tenant`);
       return { ignored: true as const };
     }
     const orgId = number.orgId;
@@ -133,7 +385,7 @@ export class WhatsappService {
         });
       }
 
-      let mediaKey: string | null = null;
+      const mediaKey: string | null = null;
       // Media is non-essential: the core message is already durable below.
       // attachMedia() never throws — failures become timeline events, never rollbacks.
       const body = msg.text ?? (msg.type === "text" ? "" : `[${msg.type}${msg.mediaId ? " attachment" : ""}]`);
@@ -228,6 +480,10 @@ export class WhatsappService {
         await this.mediaFailed(orgId, existing, "download failed");
         return { attached: false };
       }
+      if (media.bytes.length > MAX_MEDIA_BYTES) {
+        await this.mediaFailed(orgId, existing, `attachment too large (${(media.bytes.length / 1048576).toFixed(1)} MB, limit 32 MB)`);
+        return { attached: false };
+      }
       const { putObject } = await import("@pgrow/storage");
       const mediaKey = `wa/${orgId}/${ref.providerMessageId}`;
       await putObject(mediaKey, media.bytes, media.mime);
@@ -270,6 +526,79 @@ export class WhatsappService {
       type: "conversation.media_failed",
       payload: { messageId: existing.id, reason } as Prisma.InputJsonValue,
     });
+  }
+
+  /**
+   * Delivery/read/failure receipts for our outbound messages. Unknown ids are
+   * ignored (receipts for messages sent outside this system).
+   *
+   * Idempotent and order-safe: duplicate events are skipped without side
+   * effects, and stale out-of-order events never regress a newer status
+   * (e.g. a late `delivered` after `read`). Tenant-safe: when expectedOrgId
+   * is set (per-org webhook path), receipts for another tenant are skipped.
+   * Returns a summary for observability; never throws on unknown ids.
+   */
+  async applyStatuses(
+    items: Array<{ providerMessageId: string; status: string; timestamp: Date; errorCode?: string; errorDetail?: string }>,
+    opts?: { expectedOrgId?: string },
+  ): Promise<{ updated: number; skipped: number; ignored: number }> {
+    const summary = { updated: 0, skipped: 0, ignored: 0 };
+    for (const s of items) {
+      const msg = await this.prisma.message.findUnique({
+        where: { providerMessageId: s.providerMessageId },
+        include: { conversation: { select: { contactId: true, assignedAgentId: true } } },
+      });
+      if (!msg || msg.direction !== "OUT") {
+        summary.ignored += 1;
+        continue;
+      }
+      if (opts?.expectedOrgId && msg.orgId !== opts.expectedOrgId) {
+        this.log.warn(`Ignoring status for another tenant's message ${s.providerMessageId}`);
+        summary.skipped += 1;
+        continue;
+      }
+      const mapped =
+        s.status === "delivered" ? "DELIVERED" : s.status === "read" ? "READ" : s.status === "failed" || s.status === "deleted" ? "FAILED" : "SENT";
+      if (STATUS_RANK[mapped] < STATUS_RANK[msg.status as keyof typeof STATUS_RANK] || mapped === msg.status) {
+        // Stale out-of-order event, or an exact duplicate: no rewrite, and in
+        // particular no second failure notification.
+        summary.skipped += 1;
+        continue;
+      }
+      const reason =
+        mapped === "FAILED"
+          ? [s.errorCode, s.errorDetail].filter(Boolean).join(" ").slice(0, 200) || "failed"
+          : null;
+      const hint = mapped === "FAILED" ? failureHint(s.errorCode) : null;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.message.update({
+          where: { id: msg.id },
+          data: { status: mapped as never, statusAt: s.timestamp, failureReason: [reason, hint].filter(Boolean).join(" — ").slice(0, 300) || null },
+        });
+        if (mapped === "FAILED") {
+          const contact = await tx.contact.findUnique({ where: { id: msg.conversation.contactId } });
+          await logActivity(tx, {
+            orgId: msg.orgId,
+            contactId: msg.conversation.contactId,
+            type: "message.failed",
+            payload: { messageId: msg.id, reason } as Prisma.InputJsonValue,
+          });
+          const target = msg.conversation.assignedAgentId ?? contact?.assignedAgentId;
+          if (target) {
+            await this.notify.notify({
+              orgId: msg.orgId,
+              userId: target,
+              kind: "sequence.attention",
+              title: `Message failed to deliver to ${contact?.name ?? "contact"}`,
+              body: ([reason, hint].filter(Boolean).join(" — ") ?? "").slice(0, 140),
+              link: `/inbox/${msg.conversationId}`,
+            });
+          }
+        }
+      });
+      summary.updated += 1;
+    }
+    return summary;
   }
 
   // -- conversations ---------------------------------------------------------
@@ -407,12 +736,47 @@ export class WhatsappService {
     if (conv.status === "CLOSED") {
       await this.prisma.conversation.update({ where: { id }, data: { status: "OPEN" } });
     }
-    const sent = await this.provider.sendText({
-      phoneNumberId: conv.number.providerNumberId,
-      accessToken: decryptToken(conv.number.accessToken),
-      to: contact.phoneE164,
-      body: text.trim(),
-    });
+    let sent: { providerMessageId: string; via: "text" | "template" };
+    try {
+      sent = await this.provider.sendOutbound({
+        phoneNumberId: conv.number.providerNumberId,
+        accessToken: decryptToken(conv.number.accessToken),
+        to: contact.phoneE164,
+        body: text.trim(),
+        contactName: contact.name,
+        lastInboundAt: conv.lastInboundAt,
+      });
+    } catch (e) {
+      // Provider rejection is persisted as actionable history (FAILED row +
+      // timeline event) instead of vanishing — then rethrown so the caller
+      // still sees the error.
+      const reason = (e as Error).message.slice(0, 300);
+      const now = new Date();
+      await this.prisma.$transaction(async (tx) => {
+        const failed = await tx.message.create({
+          data: {
+            orgId: ctx.orgId,
+            conversationId: id,
+            providerMessageId: `sendfail-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+            direction: "OUT",
+            type: "text",
+            body: text.trim(),
+            status: "FAILED" as never,
+            statusAt: now,
+            failureReason: reason,
+            sentAt: now,
+          },
+        });
+        await logActivity(tx, {
+          orgId: ctx.orgId,
+          contactId: contact.id,
+          type: "message.failed",
+          actorId: ctx.userId,
+          payload: { conversationId: id, messageId: failed.id, reason } as Prisma.InputJsonValue,
+        });
+      });
+      throw e;
+    }
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.message.create({
@@ -423,6 +787,7 @@ export class WhatsappService {
           direction: "OUT",
           type: "text",
           body: text.trim(),
+          templateName: sent.via === "template" ? (process.env.WHATSAPP_FALLBACK_TEMPLATE?.trim() || null) : null,
           sentAt: now,
         },
       });

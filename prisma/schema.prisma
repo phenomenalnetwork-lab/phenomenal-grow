@@ -31,6 +31,23 @@ model Organisation {
   contacts    Contact[]
   activities  Activity[]
   invites     Invite[]
+  whatsappConfig WhatsappConfig?
+}
+
+// Per-organisation Meta webhook credentials (manual setup).
+// Secrets are AES-256-GCM ciphertexts (enc1:) via the shared crypto helper —
+// fail-closed, never plaintext, never returned by the API.
+model WhatsappConfig {
+  id          String   @id @default(cuid())
+  orgId       String   @unique
+  verifyToken String
+  appSecret   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model User {
@@ -241,6 +258,10 @@ model WhatsappNumber {
   providerNumberId String
   accessToken      String
   businessAccountId String?
+  // Manual-setup connection proof: set every time Test connection runs.
+  // NULL = saved but never tested. Distinguishes "saved" from "verified".
+  lastTestedAt     DateTime?
+  lastTestOk       Boolean?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -280,12 +301,23 @@ model Message {
   body              String?
   mediaKey          String?
   mediaMime         String?
+  status            MsgStatus    @default(SENT)
+  statusAt          DateTime?
+  failureReason     String?
+  templateName      String?
   sentAt            DateTime     @default(now())
   createdAt         DateTime     @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, sentAt])
+}
+
+enum MsgStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
 }
 
 // Relationship journeys. A contact can ride several at once (visitor →

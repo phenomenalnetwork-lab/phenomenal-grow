@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMetaPayload } from "./meta.provider";
+import { parseMetaPayload, parseMetaStatuses } from "./meta.provider";
 
 function envelope(message: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   return {
@@ -61,5 +61,29 @@ describe("parseMetaPayload", () => {
   it("skips empty payloads without throwing", () => {
     expect(parseMetaPayload({})).toEqual([]);
     expect(parseMetaPayload(null)).toEqual([]);
+  });
+});
+
+describe("parseMetaStatuses", () => {
+  const statuses = (list: unknown[]) => ({
+    entry: [{ changes: [{ value: { metadata: { phone_number_id: "1" }, statuses: list } }] }],
+  });
+
+  it("maps delivered/read/failed with error details", () => {
+    const out = parseMetaStatuses(
+      statuses([
+        { id: "wamid.a", status: "delivered", timestamp: "1790000000" },
+        { id: "wamid.b", status: "read", timestamp: "1790000001" },
+        { id: "wamid.c", status: "failed", timestamp: "1790000002", errors: [{ code: 131047, title: "Re-engagement message" }] },
+      ]),
+    );
+    expect(out).toHaveLength(3);
+    expect(out[0]).toMatchObject({ providerMessageId: "wamid.a", status: "delivered" });
+    expect(out[2]).toMatchObject({ providerMessageId: "wamid.c", status: "failed", errorCode: "131047" });
+  });
+
+  it("ignores unknown statuses and malformed entries", () => {
+    const out = parseMetaStatuses(statuses([{ id: "wamid.x", status: "proxy" }, { noid: true }, null]));
+    expect(out).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ACTIVE_ORG_COOKIE } from "@/lib/orgs";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
+import { SignOutButton } from "./signout-button";
 
 const hrefs: Record<string, string> = {
   Home: "/",
@@ -52,6 +53,7 @@ export async function Shell({ children, accent = "home" }: { children: React.Rea
             Notifications{unread > 0 ? <span className="count">{unread}</span> : ""}
           </a>
           <ThemeToggle />
+          <SignOutButton />
         </nav>
       </aside>
       <main className="main">{children}</main>

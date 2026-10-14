@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getSession, myMemberships, getActiveOrgId } from "@/lib/orgs";
 import { apiFetch } from "@/lib/api";
 import { Shell } from "../shell";
-import { StatusBadge } from "../badges";
 import { Avatar } from "../avatar";
 
 function Section({ title, link, tone, children }: { title: string; link?: string; tone?: "hot" | "warm" | "calm"; children: React.ReactNode }) {

@@ -1,17 +1,16 @@
-import { Controller, Get, Inject, Post, Req, Res, Logger } from "@nestjs/common";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { Controller, Get, Inject, Param, Post, Req, Res, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { WhatsappService } from "./whatsapp.service";
-import { parseMetaPayload } from "./meta.provider";
+import { parseMetaPayload, parseMetaStatuses } from "./meta.provider";
+import { checkSignature } from "./webhook-verify";
+
+function validSignatureWith(secret: string, raw: Buffer, signature: string | undefined): boolean {
+  return checkSignature(secret, raw, signature);
+}
 
 function validSignature(raw: Buffer, signature: string | undefined): boolean {
   if (process.env.SKIP_WHATSAPP_SIGNATURE === "1") return true;
-  const secret = process.env.WHATSAPP_APP_SECRET ?? "";
-  if (!secret || !signature) return false;
-  const expected = `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return validSignatureWith(process.env.WHATSAPP_APP_SECRET ?? "", raw, signature);
 }
 
 /** Public Meta webhook. No session guards — Meta calls this, not users. */
@@ -39,13 +38,59 @@ export class WebhookController {
     if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined)) {
       return res.status(401).send("Bad signature");
     }
+    await this.ingestBody(req.body);
+    return res.status(200).send("EVENT_RECEIVED");
+  }
+
+  /**
+   * Tenant webhook (manual per-org setup). Each org pastes its own verify
+   * token + app secret in Settings and points Meta at this tenant path.
+   * Secrets are compared/decrypted fail-closed and never logged.
+   */
+  @Get("webhook/org/:orgId")
+  async verifyOrg(@Param("orgId") orgId: string, @Req() req: Request, @Res() res: Response) {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+    if (mode !== "subscribe" || typeof challenge !== "string") {
+      return res.status(403).send("Forbidden");
+    }
+    const ok = await this.wa.checkOrgVerifyToken(orgId, token);
+    if (!ok) return res.status(403).send("Forbidden");
+    return res.status(200).send(challenge);
+  }
+
+  @Post("webhook/org/:orgId")
+  async receiveOrg(
+    @Param("orgId") orgId: string,
+    @Req() req: Request & { rawBody?: Buffer },
+    @Res() res: Response,
+  ) {
+    if (process.env.SKIP_WHATSAPP_SIGNATURE !== "1") {
+      const raw = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
+      const sig = req.headers["x-hub-signature-256"] as string | undefined;
+      const { configured, secret } = await this.wa.getOrgAppSecret(orgId);
+      const ok = configured
+        ? secret !== null && validSignatureWith(secret, raw, sig)
+        : validSignature(raw, sig);
+      if (!ok) return res.status(401).send("Bad signature");
+    }
+    await this.ingestBody(req.body, orgId);
+    return res.status(200).send("EVENT_RECEIVED");
+  }
+
+  private async ingestBody(body: unknown, expectedOrgId?: string) {
     try {
-      for (const msg of parseMetaPayload(req.body)) {
-        await this.wa.ingest(msg);
+      for (const msg of parseMetaPayload(body)) {
+        await this.wa.ingest(msg, expectedOrgId ? { expectedOrgId } : undefined);
+      }
+      const statuses = parseMetaStatuses(body);
+      if (statuses.length > 0) {
+        // Tenant path: receipts must not touch another tenant's messages.
+        await this.wa.applyStatuses(statuses, expectedOrgId ? { expectedOrgId } : undefined);
       }
     } catch (e) {
       this.log.error(`ingest failed: ${(e as Error).message}`);
     }
-    return res.status(200).send("EVENT_RECEIVED");
   }
 }

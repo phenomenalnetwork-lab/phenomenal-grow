@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../auth.guard";
 import { OrgGuard } from "../org.guard";
 import type { ActorCtx } from "../contacts/contacts.service";
@@ -23,9 +23,35 @@ export class NumbersController {
     return this.wa.registerNumber(ctx(req), dto);
   }
 
+  @Patch(":id")
+  update(@Req() req: any, @Param("id") id: string, @Body() dto: any) {
+    return this.wa.updateNumber(ctx(req), id, dto);
+  }
+
+  @Post(":id/test")
+  test(@Req() req: any, @Param("id") id: string) {
+    return this.wa.testNumber(ctx(req), id);
+  }
+
   @Delete(":id")
   remove(@Req() req: any, @Param("id") id: string) {
     return this.wa.removeNumber(ctx(req), id);
+  }
+}
+
+@Controller("whatsapp/config")
+@UseGuards(AuthGuard, OrgGuard)
+export class WhatsappConfigController {
+  constructor(@Inject(WhatsappService) private readonly wa: WhatsappService) {}
+
+  @Get()
+  get(@Req() req: any) {
+    return this.wa.getConfig(ctx(req));
+  }
+
+  @Put()
+  save(@Req() req: any, @Body() dto: any) {
+    return this.wa.putConfig(ctx(req), dto);
   }
 }
 

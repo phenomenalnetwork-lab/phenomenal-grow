@@ -154,11 +154,13 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
     }
     const body = renderBody(step.body, e.contact.name);
     try {
-      const sent = await this.sender.sendText({
+      const sent = await this.sender.sendOutbound({
         phoneNumberId: number.providerNumberId,
         accessToken: decryptToken(number.accessToken),
         to: e.contact.phoneE164,
         body,
+        contactName: e.contact.name,
+        lastInboundAt: e.contact.lastMessageAt,
       });
       const now = new Date();
       await this.prisma.$transaction(async (tx) => {
@@ -177,6 +179,7 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
             direction: "OUT",
             type: "text",
             body,
+            templateName: sent.via === "template" ? (process.env.WHATSAPP_FALLBACK_TEMPLATE?.trim() || null) : null,
             sentAt: now,
           },
         });
@@ -358,11 +361,13 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
         ? `Hi ${firstName(a.contact.name)}, reminder: your ${this.apptWhen(a)} is tomorrow. Reply to reschedule.`
         : `Hi ${firstName(a.contact.name)}, confirming your ${this.apptWhen(a)}. Reply to reschedule.`;
     try {
-      const sent = await this.sender.sendText({
+      const sent = await this.sender.sendOutbound({
         phoneNumberId: number.providerNumberId,
         accessToken: decryptToken(number.accessToken),
         to: a.contact.phoneE164,
         body,
+        contactName: a.contact.name,
+        lastInboundAt: a.contact.lastMessageAt,
       });
       const now = new Date();
       await this.prisma.$transaction(async (tx) => {
@@ -376,7 +381,16 @@ export class SequencesEngine implements OnModuleInit, OnModuleDestroy {
           conversationId = created.id;
         }
         await tx.message.create({
-          data: { orgId: a.orgId, conversationId, providerMessageId: sent.providerMessageId, direction: "OUT", type: "text", body, sentAt: now },
+          data: {
+            orgId: a.orgId,
+            conversationId,
+            providerMessageId: sent.providerMessageId,
+            direction: "OUT",
+            type: "text",
+            body,
+            templateName: sent.via === "template" ? (process.env.WHATSAPP_FALLBACK_TEMPLATE?.trim() || null) : null,
+            sentAt: now,
+          },
         });
         await tx.conversation.update({ where: { id: conversationId }, data: { lastOutboundAt: now, needsReply: false } });
         await logActivity(tx, { orgId: a.orgId, contactId: a.contactId, type: "appointment.reminded", payload: { appointmentId, kind } });

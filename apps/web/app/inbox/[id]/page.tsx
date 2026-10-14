@@ -25,7 +25,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   const enrollRes = await apiFetch(`/contacts/${c.contact?.id}/pipelines`, { orgId });
   const enrollments = enrollRes.ok ? ((enrollRes.data as any[]) ?? []) : [];
 
-  let members: Array<{ user: { id: string; name: string }; role: string }> | null = null;
+  let members: Array<{ user: { id: string; name: string }; role: string }> | null;
   try {
     await requireMembership(session.user.id, orgId, true);
     members = await prisma.membership.findMany({

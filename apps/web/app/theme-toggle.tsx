@@ -3,22 +3,21 @@ import { useEffect, useState } from "react";
 
 const KEY = "pg-theme";
 
-function current(): "light" | "dark" {
-  if (typeof document === "undefined") return "light";
-  if (document.documentElement.classList.contains("dark")) return "dark";
-  return "light";
-}
-
 export function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(KEY);
-    const initial = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
-    document.documentElement.classList.toggle("dark", initial === "dark");
-    setTheme(initial);
-    setReady(true);
+    // Deferred to a frame callback: reading storage/DOM and syncing state
+    // must not run synchronously in the effect body.
+    const raf = requestAnimationFrame(() => {
+      const saved = localStorage.getItem(KEY);
+      const initial = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+      document.documentElement.classList.toggle("dark", initial === "dark");
+      setTheme(initial);
+      setReady(true);
+    });
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const flip = () => {

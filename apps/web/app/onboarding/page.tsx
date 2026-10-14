@@ -12,16 +12,15 @@ export default async function Onboarding() {
   const ms = await myMemberships(session.user.id);
 
   const done: Record<string, boolean> = { org: ms.length > 0 };
-  let orgId: string | null = ms[0]?.orgId ?? null;
-  let numbers = 0;
-  let pipelines = 0;
-  let teammates = 0;
+  const orgId: string | null = ms[0]?.orgId ?? null;
+  const [numbers, pipelines, teammates] = orgId
+    ? await Promise.all([
+        prisma.whatsappNumber.count({ where: { orgId } }),
+        prisma.pipeline.count({ where: { orgId } }),
+        prisma.membership.count({ where: { orgId, active: true } }),
+      ])
+    : [0, 0, 0];
   if (orgId) {
-    [numbers, pipelines, teammates] = await Promise.all([
-      prisma.whatsappNumber.count({ where: { orgId } }),
-      prisma.pipeline.count({ where: { orgId } }),
-      prisma.membership.count({ where: { orgId, active: true } }),
-    ]);
     done.number = numbers > 0;
     done.pipeline = pipelines > 0;
     done.team = teammates > 1;

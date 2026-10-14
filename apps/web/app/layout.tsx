@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ServiceWorker } from "./sw-register";
-import { ThemeToggle } from "./theme-toggle";
 
 export const metadata: Metadata = {
   title: "Phenomenal Grow",

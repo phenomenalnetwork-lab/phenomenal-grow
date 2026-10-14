@@ -38,7 +38,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
   const allSeqs = seqRes.ok ? ((seqRes.data as any[]) ?? []) : [];
   const apptRes = await apiFetch(`/appointments?view=all`, { orgId });
   const myAppts = apptRes.ok ? ((apptRes.data as any[]) ?? []).filter((a: any) => a.contactId === id) : [];
-  let members: Array<{ user: { id: string; name: string; email: string }; role: string }> | null = null;
+  let members: Array<{ user: { id: string; name: string; email: string }; role: string }> | null;
   try {
     await requireMembership(session.user.id, orgId, true);
     members = await prisma.membership.findMany({
