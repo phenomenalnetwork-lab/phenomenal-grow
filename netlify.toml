@@ -1,0 +1,15 @@
+# Netlify secret-scanning tuning for the Phenomenal Grow APK release.
+#
+# The compiled release binary at apps/web/public/downloads/phenomenal-grow.apk
+# embeds the site's own public hostname (AndroidManifest host + TWA shortcut
+# configuration). Netlify's scanner matches the BETTER_AUTH_URL value against
+# it and fails the build. No secret values are embedded in the APK (verified:
+# no tokens, keys, or credentials in the binary) - this is a benign
+# value-match on an already-public hostname, not a leak.
+#
+# This omits ONLY that exact binary path from secret scanning. Global scanning
+# and smart detection stay fully enabled for everything else. If Netlify does
+# not honour file-based values for scanner config, set the same variable with
+# the same value in Project configuration > Environment variables instead.
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = "apps/web/public/downloads/phenomenal-grow.apk"
