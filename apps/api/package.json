@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "lint": "echo ok",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo ok"
+    "test": "vitest run --config ../../vitest.config.ts --fileParallelism=false"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",

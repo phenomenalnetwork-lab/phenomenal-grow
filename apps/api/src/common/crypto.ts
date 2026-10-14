@@ -2,6 +2,11 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 
 const PREFIX = "enc1:";
 
+/** One-shot escape hatch for the single legacy migration run. Never enable in production. */
+function legacyAllowed(): boolean {
+  return process.env.ALLOW_LEGACY_PLAINTEXT === "1";
+}
+
 function key(): Buffer {
   const secret = process.env.ENCRYPTION_KEY ?? "";
   if (secret.length < 16) {
@@ -10,7 +15,7 @@ function key(): Buffer {
   return scryptSync(secret, "pgrow-token", 32);
 }
 
-/** AES-256-GCM for provider tokens at rest. Wrong-key/plaintext input falls back to raw (migration path). */
+/** AES-256-GCM for provider tokens at rest. Fails closed: no key, no ciphertext. */
 export function encryptToken(plain: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), iv);
@@ -19,13 +24,16 @@ export function encryptToken(plain: string): string {
 }
 
 export function decryptToken(stored: string): string {
-  if (!stored.startsWith(PREFIX)) return stored;
+  if (!stored.startsWith(PREFIX)) {
+    if (legacyAllowed()) return stored;
+    throw new Error("Refusing to use unencrypted credential (no enc1: prefix)");
+  }
+  const [, ivB64, encB64, tagB64] = stored.split(/[:.]/);
   try {
-    const [, ivB64, encB64, tagB64] = stored.split(/[:.]/);
     const decipher = createDecipheriv("aes-256-gcm", key(), Buffer.from(ivB64, "base64"));
     decipher.setAuthTag(Buffer.from(tagB64, "base64"));
     return Buffer.concat([decipher.update(Buffer.from(encB64, "base64")), decipher.final()]).toString("utf8");
   } catch {
-    return stored;
+    throw new Error("Credential decryption failed (wrong key or tampered data)");
   }
 }

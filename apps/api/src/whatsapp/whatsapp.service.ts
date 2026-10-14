@@ -2,7 +2,7 @@ import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } fro
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
-import { decryptToken } from "../common/crypto";
+import { decryptToken, encryptToken } from "../common/crypto";
 import { logActivity } from "../contacts/activity";
 import { normalizePhone } from "../contacts/phone.util";
 import type { ActorCtx } from "../contacts/contacts.service";
@@ -42,8 +42,7 @@ export class WhatsappService {
     if (!label || !providerNumberId || !accessToken) {
       throw new ForbiddenException("label, providerNumberId and accessToken are required");
     }
-    const { encryptToken } = await import("../common/crypto");
-    const stored = process.env.ENCRYPTION_KEY ? encryptToken(accessToken) : accessToken;
+    const stored = encryptToken(accessToken);
     return this.prisma.whatsappNumber.upsert({
       where: { orgId_providerNumberId: { orgId: ctx.orgId, providerNumberId } },
       update: { label, accessToken: stored, businessAccountId: dto?.businessAccountId?.trim() || null },
