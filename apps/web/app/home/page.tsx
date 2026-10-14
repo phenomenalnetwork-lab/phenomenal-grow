@@ -147,6 +147,7 @@ export default async function Home() {
 
         {isOwner && d.team && (
           <Section title="Team">
+            <div className="table-scroll">
             <table className="grid">
               <thead>
                 <tr>
@@ -174,6 +175,7 @@ export default async function Home() {
                 ))}
               </tbody>
             </table>
+            </div>
           </Section>
         )}
       </div>

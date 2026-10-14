@@ -113,6 +113,10 @@ ul.clean > li {
 }
 ul.clean > li.hot { border-color: #fca5a5; background: #fef2f2; }
 ul.clean > li.warm { border-color: #fcd34d; background: #fffbeb; }
+/* Reusable horizontal scroll for wide tables: desktop appearance unchanged
+   (tables keep width:100%), small screens scroll inside the wrapper. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll > table.grid { min-width: 560px; }
 table.grid { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.grid th, table.grid td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--pg-line); }
 table.grid th { color: var(--pg-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }

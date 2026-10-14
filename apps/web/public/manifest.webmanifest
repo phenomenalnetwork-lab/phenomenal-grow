@@ -3,11 +3,28 @@
   "short_name": "Phenomenal",
   "description": "Turn Conversations Into Growth",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#0891b2",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Home",
+      "short_name": "Home",
+      "description": "Who needs me right now?",
+      "url": "/home",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Inbox",
+      "short_name": "Inbox",
+      "description": "WhatsApp conversations needing a reply",
+      "url": "/inbox",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

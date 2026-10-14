@@ -56,6 +56,7 @@ export default function ImportPage() {
         {error && <p style={{ color: "var(--pg-overdue)" }}>{error}</p>}
         {result && <p>{result}</p>}
         {report && (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -74,6 +75,7 @@ export default function ImportPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         <h2>Export</h2>
         <p>

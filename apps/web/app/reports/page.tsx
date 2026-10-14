@@ -112,7 +112,8 @@ export default async function ReportsPage({
           );
         })}
 
-        <h3>Agents</h3>        <table className="grid">
+        <h3>Agents</h3>        <div className="table-scroll">
+        <table className="grid">
           <thead>
             <tr>
               <th>Agent</th>
@@ -139,6 +140,7 @@ export default async function ReportsPage({
             ))}
           </tbody>
         </table>
+        </div>
 
         <h3>DNC compliance audit</h3>
         {audit ? (
