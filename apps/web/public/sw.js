@@ -20,6 +20,46 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+function urlBase64ToUint8Array(base64) {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob(base64.replace(/-/g, "+").replace(/_/g, "/") + padding);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+/**
+ * Subscription rotation recovery. Re-subscribes with the current session and
+ * saves the new endpoint through the existing authenticated endpoint.
+ * Fail-safe: any failure (logged out, no org context, no network, server
+ * rejection) removes the orphaned local subscription and defers recovery
+ * until the user next opens the CRM. Binding always derives server-side
+ * from the session — never rebound across users here. No pages, API data,
+ * or sessions are cached by this handler.
+ */
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const keyRes = await fetch("/api/push/public-key");
+        if (!keyRes.ok) return;
+        const { key } = await keyRes.json();
+        if (!key) return;
+        const sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        });
+        const res = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint, keys: sub.toJSON().keys }),
+        });
+        if (!res.ok) await sub.unsubscribe().catch(() => undefined);
+      } catch {
+        // Offline or logged out: leave recovery to the next CRM visit.
+      }
+    })(),
+  );
+});
+
 self.addEventListener("push", (event) => {
   let data = { title: "Phenomenal Grow", body: "", link: "/" };
   try {
