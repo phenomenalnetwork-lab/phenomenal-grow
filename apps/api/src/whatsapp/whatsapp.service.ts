@@ -2,7 +2,7 @@ import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } fro
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
-import { decryptToken } from "../common/crypto";
+import { decryptToken, encryptToken } from "../common/crypto";
 import { logActivity } from "../contacts/activity";
 import { normalizePhone } from "../contacts/phone.util";
 import type { ActorCtx } from "../contacts/contacts.service";
@@ -42,8 +42,7 @@ export class WhatsappService {
     if (!label || !providerNumberId || !accessToken) {
       throw new ForbiddenException("label, providerNumberId and accessToken are required");
     }
-    const { encryptToken } = await import("../common/crypto");
-    const stored = process.env.ENCRYPTION_KEY ? encryptToken(accessToken) : accessToken;
+    const stored = encryptToken(accessToken);
     return this.prisma.whatsappNumber.upsert({
       where: { orgId_providerNumberId: { orgId: ctx.orgId, providerNumberId } },
       update: { label, accessToken: stored, businessAccountId: dto?.businessAccountId?.trim() || null },
@@ -80,7 +79,20 @@ export class WhatsappService {
       return { ignored: true as const };
     }
     const dupe = await this.prisma.message.findUnique({ where: { providerMessageId: msg.providerMessageId } });
-    if (dupe) return { duplicate: true as const };
+    if (dupe) {
+      // Meta redelivers on transport failures: a duplicate may carry a media
+      // reference whose first backfill failed. Re-attempt without new writes
+      // when the stored row still lacks its attachment.
+      if (msg.mediaId && !dupe.mediaKey) {
+        await this.attachMedia(orgId, dupe.id, {
+          mediaId: msg.mediaId,
+          mediaMime: msg.mediaMime,
+          providerMessageId: msg.providerMessageId,
+          providerNumberId: msg.phoneNumberId,
+        });
+      }
+      return { duplicate: true as const };
+    }
 
     return this.prisma.$transaction(async (tx) => {
       let contact = await tx.contact.findUnique({ where: { orgId_phoneE164: { orgId, phoneE164: phone } } });
@@ -122,22 +134,10 @@ export class WhatsappService {
       }
 
       let mediaKey: string | null = null;
-      if (msg.mediaId) {
-        const media = await this.provider.fetchMedia({ mediaId: msg.mediaId, accessToken: decryptToken(number.accessToken) });
-        if (media) {
-          try {
-            const { putObject } = await import("@pgrow/storage");
-            mediaKey = `wa/${orgId}/${msg.providerMessageId}`;
-            await putObject(mediaKey, media.bytes, media.mime);
-          } catch (e) {
-            this.log.warn(`R2 store failed, keeping reference only: ${(e as Error).message}`);
-            mediaKey = null;
-          }
-        }
-      }
-
+      // Media is non-essential: the core message is already durable below.
+      // attachMedia() never throws — failures become timeline events, never rollbacks.
       const body = msg.text ?? (msg.type === "text" ? "" : `[${msg.type}${msg.mediaId ? " attachment" : ""}]`);
-      await tx.message.create({
+      const created = await tx.message.create({
         data: {
           orgId,
           conversationId: conv.id,
@@ -165,19 +165,110 @@ export class WhatsappService {
         payload: { conversationId: conv.id, preview: body.slice(0, 120) } as Prisma.InputJsonValue,
       });
       const target = conv.assignedAgentId ?? contact.assignedAgentId;
-      if (target) {
-        await this.notify.notify({
-          orgId,
-          userId: target,
-          kind: "conversation.reply",
-          title: `${contact.name} replied`,
-          body: body.slice(0, 140),
-          link: `/inbox/${conv.id}`,
+      const notice = target
+        ? { userId: target, owners: false as const }
+        : { userId: "", owners: true as const };
+      return { contactId: contact.id, conversationId: conv.id, messageId: created.id, notice, contactName: contact.name, preview: body.slice(0, 140) };
+    }).then(async (result) => {
+      // Webhook is acked only after the core message above is durable.
+      // Media backfill is best-effort and can never fail the ingest.
+      if (msg.mediaId) {
+        await this.attachMedia(orgId, result.messageId, {
+          mediaId: msg.mediaId,
+          mediaMime: msg.mediaMime,
+          providerMessageId: msg.providerMessageId,
+          providerNumberId: msg.phoneNumberId,
         });
-      } else {
-        await this.notify.notifyOwners(orgId, "conversation.reply", `Unassigned reply from ${contact.name}`, body.slice(0, 140), `/inbox/${conv.id}`);
       }
-      return { contactId: contact.id, conversationId: conv.id };
+      // Notifications are incidental: a failure here must never roll back
+      // (or lose) the persisted message, so they run post-commit, guarded.
+      try {
+        if (result.notice.owners) {
+          await this.notify.notifyOwners(orgId, "conversation.reply", `Unassigned reply from ${result.contactName}`, result.preview, `/inbox/${result.conversationId}`);
+        } else {
+          await this.notify.notify({
+            orgId,
+            userId: result.notice.userId,
+            kind: "conversation.reply",
+            title: `${result.contactName} replied`,
+            body: result.preview,
+            link: `/inbox/${result.conversationId}`,
+          });
+        }
+      } catch (e) {
+        this.log.warn(`reply notification failed (message kept): ${(e as Error).message}`);
+      }
+      return { contactId: result.contactId, conversationId: result.conversationId };
+    });
+  }
+
+  /**
+   * Best-effort media backfill for an already-persisted message. Never throws:
+   * decrypt/download/store failures become a timeline event and the message
+   * keeps its provider reference for a later retry via the same method.
+   */
+  async attachMedia(
+    orgId: string,
+    messageId: string,
+    ref: { mediaId: string; mediaMime?: string; providerMessageId: string; providerNumberId: string },
+  ): Promise<{ attached: boolean }> {
+    try {
+      const existing = await this.prisma.message.findFirst({ where: { id: messageId, orgId } });
+      if (!existing) return { attached: false };
+      if (existing.mediaKey) return { attached: true };
+      const number = await this.prisma.whatsappNumber.findFirst({
+        where: { orgId, providerNumberId: ref.providerNumberId },
+      });
+      if (!number) {
+        this.log.warn(`media backfill skipped, number gone`);
+        return { attached: false };
+      }
+      const media = await this.provider.fetchMedia({ mediaId: ref.mediaId, accessToken: decryptToken(number.accessToken) });
+      if (!media) {
+        await this.mediaFailed(orgId, existing, "download failed");
+        return { attached: false };
+      }
+      const { putObject } = await import("@pgrow/storage");
+      const mediaKey = `wa/${orgId}/${ref.providerMessageId}`;
+      await putObject(mediaKey, media.bytes, media.mime);
+      const contactId = await this.contactOf(existing.conversationId);
+      await this.prisma.$transaction(async (tx) => {
+        await tx.message.update({ where: { id: existing.id }, data: { mediaKey, mediaMime: media.mime } });
+        await logActivity(tx, {
+          orgId,
+          contactId,
+          type: "conversation.media_attached",
+          payload: { messageId: existing.id } as Prisma.InputJsonValue,
+        });
+      });
+      return { attached: true };
+    } catch (e) {
+      this.log.warn(`media backfill failed: ${(e as Error).message}`);
+      try {
+        const existing = await this.prisma.message.findFirst({ where: { id: messageId, orgId } });
+        if (existing) await this.mediaFailed(orgId, existing, (e as Error).message.slice(0, 120));
+      } catch {
+        // Audit write itself failed — message row is still durable; stop here.
+      }
+      return { attached: false };
+    }
+  }
+
+  private async contactOf(conversationId: string): Promise<string> {
+    const conv = await this.prisma.conversation.findUnique({ where: { id: conversationId }, select: { contactId: true } });
+    return conv?.contactId ?? "";
+  }
+
+  private async mediaFailed(
+    orgId: string,
+    existing: { id: string; conversationId: string },
+    reason: string,
+  ) {
+    await logActivity(this.prisma, {
+      orgId,
+      contactId: await this.contactOf(existing.conversationId),
+      type: "conversation.media_failed",
+      payload: { messageId: existing.id, reason } as Prisma.InputJsonValue,
     });
   }
 
