@@ -23,3 +23,7 @@ export async function GET() {
 export async function POST(req: Request) {
   return forward("/notifications/push/subscriptions", { method: "POST", body: JSON.stringify(await req.json()) });
 }
+
+export async function DELETE(req: Request) {
+  return forward("/notifications/push/subscriptions", { method: "DELETE", body: JSON.stringify(await req.json()) });
+}
